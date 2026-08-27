@@ -1,11 +1,24 @@
-# Test your FastAPI endpoints
-
-GET http://127.0.0.1:8000/
+### Health check
+GET http://127.0.0.1:8000/health
 Accept: application/json
 
 ###
 
-GET http://127.0.0.1:8000/hello/User
-Accept: application/json
+### Chat
+POST http://127.0.0.1:8000/chat
+Content-Type: application/json
+
+{
+  "query": "What is the weather in Chennai?",
+  "location": {
+    "city": "Chennai"
+  },
+  "language": "English",
+  "channel": "web"
+}
 
 ###
+
+### RAG ingestion
+POST http://127.0.0.1:8000/rag/ingest
+Accept: application/json

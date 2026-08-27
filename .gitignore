@@ -42,3 +42,9 @@ logs/
 node_modules/
 frontend/dist/
 frontend/build/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+vector_db/

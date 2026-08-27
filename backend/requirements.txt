@@ -5,3 +5,10 @@ httpx
 python-dotenv
 
 requests
+
+langchain-google-genai
+langchain-community
+chromadb
+pypdf
+
+langchain-text-splitters
