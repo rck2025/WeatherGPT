@@ -3,6 +3,8 @@ import logging
 from typing import Optional
 from backend.schemas import Location, LocationInput
 
+# district extraction has to be added later
+
 # Setup basic logging for debugging failures
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
