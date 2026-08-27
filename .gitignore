@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+
+# Testing / caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Frontend dependencies / build
+node_modules/
+frontend/dist/
+frontend/build/
