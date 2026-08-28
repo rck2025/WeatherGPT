@@ -3,7 +3,6 @@ import os
 from typing import Optional
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 from langchain_google_genai import (
@@ -31,12 +30,13 @@ class RAGBrain:
     """
     RAG + Gemini service for WeatherGPT.
 
-    IMPORTANT:
-    - Does not define FastAPI routes.
-    - Does not define its own Pydantic schemas.
-    - Consumes the schemas from backend.schemas.
-    - Receives live weather data from the weather service.
-    - Returns data compatible with ChatResponse.
+    Responsibilities:
+    - Retrieve relevant disaster/safety documents.
+    - Consume live weather data.
+    - Understand the user's actual weather question.
+    - Select weather data relevant to the question.
+    - Generate a concise, practical answer using Gemini.
+    - Return data compatible with ChatResponse.
     """
 
     DEFAULT_DATA_DIR = "./backend/data"
@@ -45,16 +45,10 @@ class RAGBrain:
     EMBEDDING_MODEL = "models/gemini-embedding-001"
     LLM_MODEL = "gemini-3.6-flash"
 
-    def __init__(
-        self,
-        data_dir: str = DEFAULT_DATA_DIR,
-        db_dir: str = DEFAULT_DB_DIR,
-    ):
+    def __init__(self, data_dir: str = DEFAULT_DATA_DIR, db_dir: str = DEFAULT_DB_DIR):
         self.data_dir = data_dir
         self.db_dir = db_dir
-
         self.vector_db: Optional[Chroma] = None
-
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
 
         if not self.gemini_api_key:
@@ -82,12 +76,7 @@ class RAGBrain:
     # ------------------------------------------------------------------
 
     def _load_existing_vector_db(self) -> None:
-        """
-        Load an existing Chroma database if one exists.
-
-        We deliberately do not build the database during startup.
-        Ingestion is an explicit operation.
-        """
+        """Load an existing Chroma database if one exists."""
 
         if not os.path.isdir(self.db_dir):
             logger.info("RAG vector DB does not exist yet: %s", self.db_dir)
@@ -98,20 +87,14 @@ class RAGBrain:
                 persist_directory=self.db_dir,
                 embedding_function=self.embeddings,
             )
-
-            logger.info(
-                "Loaded existing RAG vector DB from %s",
-                self.db_dir,
-            )
-
+            logger.info("Loaded existing RAG vector DB from %s", self.db_dir)
         except Exception:
             logger.exception("Failed to load existing RAG vector DB.")
             self.vector_db = None
 
     def ingest_documents(self) -> int:
         """
-        Load PDFs from data_dir, split them, embed them and store them
-        in Chroma.
+        Load PDFs from data_dir, split them, embed them and store them in Chroma.
 
         Returns:
             Number of PDF files processed.
@@ -132,14 +115,9 @@ class RAGBrain:
         ]
 
         if not pdf_files:
-            raise FileNotFoundError(
-                f"No PDF files found in {self.data_dir}"
-            )
+            raise FileNotFoundError(f"No PDF files found in {self.data_dir}")
 
-        logger.info(
-            "Starting RAG ingestion. PDFs found: %d",
-            len(pdf_files),
-        )
+        logger.info("Starting RAG ingestion. PDFs found: %d", len(pdf_files))
 
         loader = PyPDFDirectoryLoader(self.data_dir)
         documents = loader.load()
@@ -168,10 +146,7 @@ class RAGBrain:
             persist_directory=self.db_dir,
         )
 
-        logger.info(
-            "RAG vector DB created/refreshed at %s",
-            self.db_dir,
-        )
+        logger.info("RAG vector DB created/refreshed at %s", self.db_dir)
 
         return len(pdf_files)
 
@@ -179,19 +154,13 @@ class RAGBrain:
     # RETRIEVAL
     # ------------------------------------------------------------------
 
-    def _retrieve(
-        self,
-        query: str,
-        k: int = 3,
-    ) -> tuple[list[RAGDocument], str]:
+    def _retrieve(self, query: str, k: int = 3) -> tuple[list[RAGDocument], str]:
         """
-        Retrieve relevant documents.
+        Retrieve relevant RAG documents.
 
         Returns:
-            (
-                RAGDocument list for ChatResponse.sources,
-                combined context for Gemini
-            )
+            RAGDocument list for ChatResponse.sources,
+            combined context for Gemini.
         """
 
         if self.vector_db is None:
@@ -201,12 +170,8 @@ class RAGBrain:
             return [], ""
 
         try:
-            results = (
-                self.vector_db
-                .similarity_search_with_relevance_scores(
-                    query,
-                    k=k,
-                )
+            results = self.vector_db.similarity_search_with_relevance_scores(
+                query, k=k
             )
         except Exception:
             logger.exception("RAG retrieval failed.")
@@ -218,7 +183,6 @@ class RAGBrain:
         for document, score in results:
             source_path = document.metadata.get("source", "Unknown source")
             source_name = os.path.basename(source_path)
-
             page = document.metadata.get("page")
 
             if page is not None:
@@ -247,28 +211,20 @@ class RAGBrain:
     # WEATHER / ALERT LOGIC
     # ------------------------------------------------------------------
 
-    def _build_alerts(
-        self,
-        weather: Optional[WeatherResponse],
-    ) -> list[WeatherAlert]:
+    def _build_alerts(self, weather: Optional[WeatherResponse]) -> list[WeatherAlert]:
         """
         Generate deterministic application-level alerts from live weather.
-
-        These alerts are separate from RAG retrieval.
         """
 
         if weather is None or weather.current is None:
             return []
 
         current: CurrentWeatherData = weather.current
-
         wind = current.wind_speed or 0.0
         precipitation = current.precipitation or 0.0
         temperature = current.temperature or 0.0
-
         alerts: list[WeatherAlert] = []
 
-        # Preserve the teammate's original threshold logic.
         if wind > 70 or precipitation > 100 or temperature > 45:
             alerts.append(
                 WeatherAlert(
@@ -310,51 +266,170 @@ class RAGBrain:
         """
 
         keywords = [
-            "weather",
-            "rain",
-            "rainfall",
-            "storm",
-            "cyclone",
-            "flood",
-            "flooding",
-            "heat",
-            "heatwave",
-            "temperature",
-            "wind",
-            "lightning",
-            "thunder",
-            "cloudburst",
-            "disaster",
-            "emergency",
-            "safety",
-            "ndrf",
-            "imd",
-            "mausam",
-            "forecast",
-            "monsoon",
-            "warning",
-            "alert",
+            "weather", "rain", "rainfall", "storm", "cyclone", "flood", "flooding",
+            "heat", "heatwave", "temperature", "wind", "lightning", "thunder", "cloudburst",
+            "disaster", "emergency", "safety", "ndrf", "imd", "mausam", "forecast", "monsoon",
+            "warning", "alert", "umbrella", "raincoat", "jacket", "outdoor", "outside", "picnic",
+            "run", "running", "walk", "walking", "travel", "trip", "cycling", "bike", "driving", "drive",
+            "rafting", "trekking", "hiking", "mountaineering", "camping", "boating", "paragliding",
+            "surfing", "cycling", "travel", "trip", "sikkim", "meghalaya", "himachal", "uttarakhand", "kerala"
         ]
 
         query_lower = query.lower()
-
         return any(keyword in query_lower for keyword in keywords)
+
+    # ------------------------------------------------------------------
+    # QUERY-AWARE WEATHER CONTEXT
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_query_aware_weather_context(
+        query: str,
+        weather: Optional[WeatherResponse],
+    ) -> str:
+        """
+        Select the weather information relevant to the user's question.
+
+        This prevents Gemini from receiving a large undifferentiated
+        weather object and hoping it figures out which date/fields matter.
+        """
+
+        if weather is None:
+            return "No live weather data is available."
+
+        query_lower = query.lower()
+        current = weather.current
+        daily = weather.daily or []
+        context_parts: list[str] = []
+
+        # --------------------------------------------------------------
+        # Time intent
+        # --------------------------------------------------------------
+
+        is_tomorrow = any(
+            phrase in query_lower
+            for phrase in ["tomorrow", "next day", "next 24 hours"]
+        )
+
+        is_today = any(
+            phrase in query_lower
+            for phrase in [
+                "today",
+                "tonight",
+                "right now",
+                "currently",
+                "current",
+                "now",
+                "outside",
+            ]
+        )
+
+        # --------------------------------------------------------------
+        # Current conditions
+        # --------------------------------------------------------------
+
+        if current is not None and is_today:
+            context_parts.append(
+                "CURRENT WEATHER:\n"
+                f"temperature: {current.temperature} °C\n"
+                f"feels_like: {current.feels_like} °C\n"
+                f"humidity: {current.humidity}%\n"
+                f"wind_speed: {current.wind_speed} km/h\n"
+                f"precipitation: {current.precipitation} mm\n"
+                f"weather_code: {current.weather_code}"
+            )
+
+        # --------------------------------------------------------------
+        # Forecast
+        # --------------------------------------------------------------
+
+        if daily:
+            if is_tomorrow:
+                selected_days = daily[:1]
+            elif is_today:
+                selected_days = daily[:1]
+            else:
+                selected_days = daily[:5]
+
+            for day in selected_days:
+                context_parts.append(
+                    "FORECAST:\n"
+                    f"date: {day.date}\n"
+                    f"temperature_max: {day.temperature_max} °C\n"
+                    f"temperature_min: {day.temperature_min} °C\n"
+                    f"precipitation: {day.precipitation} mm\n"
+                    f"weather_code: {day.weather_code}"
+                )
+
+        # --------------------------------------------------------------
+        # Practical decision questions
+        # --------------------------------------------------------------
+
+        practical_keywords = [
+            "umbrella", "rain", "raincoat", "jacket", "coat",
+            "run", "running", "walk", "walking", "outdoor",
+            "outside", "picnic", "travel", "trip", "bike",
+            "cycling", "drive", "driving",
+        ]
+
+        is_practical_question = any(
+            keyword in query_lower
+            for keyword in practical_keywords
+        )
+
+        if is_practical_question:
+            context_parts.append(
+                "PRACTICAL WEATHER DECISION:\n"
+                "Use precipitation, temperature, wind and "
+                "weather condition for the requested time period "
+                "to make the recommendation.\n"
+                "Do not give generic advice when live forecast "
+                "data is available."
+            )
+
+        # --------------------------------------------------------------
+        # Adventure questions
+        # --------------------------------------------------------------
+        adventure_keywords = ["rafting", "trekking", "hiking", "paragliding", "mountaineering", "boating"]
+        is_adventure_query = any(k in query_lower for k in adventure_keywords)
+
+        if is_adventure_query:
+            context_parts.append(
+                "ADVENTURE SPORTS SAFETY RULES:\n"
+                "- RAFTING: High risk if precipitation > 10mm or wind > 30km/h. Dangerous during heavy monsoon.\n"
+                "- TREKKING: High risk if visibility is low (weather_code > 70) or temperature < 0°C.\n"
+                "- PARAGLIDING: Impossible if wind_speed > 20km/h.\n"
+                "Combine these rules with the LIVE DATA below to give a definitive 'Go' or 'No-Go' decision."
+            )
+
+        # --------------------------------------------------------------
+        # Fallback
+        # --------------------------------------------------------------
+
+        if not context_parts:
+            return weather.model_dump_json()
+
+        return "\n\n".join(context_parts)
 
     # ------------------------------------------------------------------
     # PROMPT
     # ------------------------------------------------------------------
 
     def _build_prompt(
-        self,
-        request: ChatRequest,
-        location: Optional[Location],
-        weather: Optional[WeatherResponse],
-        alerts: list[WeatherAlert],
-        context: str,
+            self,
+            request: ChatRequest,
+            location: Optional[Location],
+            weather: Optional[WeatherResponse],
+            alerts: list[WeatherAlert],
+            context: str,
     ) -> str:
         """
-        Build the Gemini prompt from the existing application objects.
+        Build a query-aware Gemini prompt using a clear hierarchy of truth.
         """
+
+        # --------------------------------------------------------------
+        # 1. Handle location
+        # --------------------------------------------------------------
 
         location_text = "Unknown"
 
@@ -367,69 +442,132 @@ class RAGBrain:
             ]
 
             location_text = ", ".join(
-                part
-                for part in location_parts
-                if part
+                part for part in location_parts if part
             )
 
             if not location_text:
-                location_text = (
-                    f"{location.latitude}, {location.longitude}"
-                )
+                location_text = f"{location.latitude}, {location.longitude}"
 
-        weather_json = (
-            weather.model_dump_json()
-            if weather is not None
-            else "{}"
-        )
+        # --------------------------------------------------------------
+        # 2. Handle missing weather
+        # --------------------------------------------------------------
 
-        alerts_text = "\n".join(
-            (
-                f"- {alert.title}: "
-                f"{alert.description} "
-                f"(Severity: {alert.severity})"
+        if weather and weather.current:
+            weather_context = self._build_query_aware_weather_context(
+                request.query,
+                weather,
             )
-            for alert in alerts
+        else:
+            weather_context = (
+                "Live weather data is currently unavailable "
+                "for this location."
+            )
+
+        # --------------------------------------------------------------
+        # 3. Handle missing alerts
+        # --------------------------------------------------------------
+
+        alerts_content = (
+            "\n".join(
+                f"- {alert.title}: {alert.description}"
+                for alert in alerts
+            )
+            if alerts
+            else "No active weather alerts detected by the application."
         )
 
-        if not alerts_text:
-            alerts_text = "No application-generated alerts."
+        # --------------------------------------------------------------
+        # 4. Handle missing RAG context
+        # --------------------------------------------------------------
+
+        rag_content = (
+            context
+            if context.strip()
+            else "No relevant safety documents were found for this query."
+        )
+
+        # --------------------------------------------------------------
+        # 5. Build final Gemini prompt
+        # --------------------------------------------------------------
 
         return f"""
-You are WeatherGPT, a weather and disaster-safety assistant.
+    ==================================================
+    HIERARCHY OF TRUTH (Follow in this order):
+    ==================================================
 
-Your role:
-- Answer weather and disaster-safety questions.
-- Use live weather data when it is provided.
-- Use retrieved official/reference documents when relevant.
-- Do not invent weather measurements, warnings, or facts.
-- Clearly distinguish live weather information from general safety guidance.
-- Give practical, concise and actionable advice.
-- If the retrieved context does not contain enough information, say so.
-- Do not claim that a retrieved document is an official warning unless it
-  explicitly represents one.
-- Respond in the requested language.
+    1. OFFICIAL ACTIVE ALERTS (Highest Priority):
+    {alerts_content}
 
-REQUESTED LANGUAGE:
-{request.language}
+    If a RED or ORANGE alert is present above, your response
+    MUST lead with this warning.
 
-LOCATION:
-{location_text}
+    2. GOVERNMENT SAFETY SOPs (The RAG Knowledge):
+    {rag_content}
 
-USER QUESTION:
-{request.query}
+    Use this for specific safety procedures, helplines,
+    evacuation guidance, restrictions, and activity bans.
 
-LIVE WEATHER:
-{weather_json}
+    3. LIVE SENSOR DATA (The Numbers):
+    {weather_context}
 
-APPLICATION ALERTS:
-{alerts_text}
+    Use this for current temperature, wind, precipitation,
+    weather conditions, and specific numerical questions.
 
-RETRIEVED SAFETY / DISASTER CONTEXT:
-{context if context else "No relevant documents were retrieved."}
+    ==================================================
+    INSTRUCTIONS:
+    ==================================================
 
-Now answer the user's question.
-"""
+    - You are an expert weather and safety officer.
+
+    - Answer the USER'S EXACT QUESTION directly.
+
+    - Follow the HIERARCHY OF TRUTH above.
+
+    - DO NOT ignore Live Weather Data just because there
+      is no Official Alert.
+
+    - If Live Weather shows extreme conditions such as
+      very high temperature, heavy precipitation, or
+      dangerous wind speeds, advise caution even when
+      there is no Official Alert.
+
+    - Do NOT invent alerts, weather values, government
+      procedures, or safety information.
+
+    - For adventure activities such as rafting, trekking,
+      hiking, paragliding, boating, and mountaineering,
+      prioritize activity-specific safety rules, bans,
+      and restrictions found in the RAG Context.
+
+    - Combine RAG safety guidance with Live Weather Data
+      when making activity recommendations.
+
+    - If the available information is insufficient to make
+      a reliable safety decision, clearly say so.
+
+    - For "Should I...?" questions, give a clear
+      recommendation such as YES, NO, or AVOID.
+
+    - Explain the recommendation using the relevant
+      information above.
+
+    - Keep the response concise, practical, and easy to
+      understand.
+
+    - Respond in {request.language}.
+
+    ==================================================
+
+    USER QUESTION:
+    {request.query}
+
+    LOCATION:
+    {location_text}
+
+    ==================================================
+
+    Answer:
+    """
 
     # ------------------------------------------------------------------
     # MAIN RAG OPERATION
@@ -442,15 +580,7 @@ Now answer the user's question.
         location: Optional[Location] = None,
     ) -> ChatResponse:
         """
-        Main RAG operation.
-
-        Input:
-            ChatRequest
-            WeatherResponse
-            Location
-
-        Output:
-            ChatResponse
+        Main WeatherGPT operation.
         """
 
         # --------------------------------------------------------------
@@ -460,9 +590,9 @@ Now answer the user's question.
         if not self._is_weather_or_disaster_query(request.query):
             return ChatResponse(
                 bot_reply=(
-                    "I am WeatherGPT, and I can help with weather, "
-                    "forecasts, weather alerts, and disaster-safety "
-                    "questions."
+                    "I am WeatherGPT, and I can help with "
+                    "weather, forecasts, weather alerts, "
+                    "and disaster-safety questions."
                 ),
                 location=location,
                 weather=weather,
@@ -471,13 +601,13 @@ Now answer the user's question.
             )
 
         # --------------------------------------------------------------
-        # 2. Build deterministic alerts
+        # 2. Deterministic weather alerts
         # --------------------------------------------------------------
 
         alerts = self._build_alerts(weather)
 
         # --------------------------------------------------------------
-        # 3. Retrieve relevant documents
+        # 3. Query-aware RAG retrieval
         # --------------------------------------------------------------
 
         sources, context = self._retrieve(
@@ -486,16 +616,14 @@ Now answer the user's question.
         )
 
         # --------------------------------------------------------------
-        # 4. Handle missing RAG DB
+        # 4. Handle unavailable RAG
         # --------------------------------------------------------------
 
         if self.vector_db is None:
-            logger.warning(
-                "RAG vector database is not available."
-            )
+            logger.warning("RAG vector database is not available.")
 
         # --------------------------------------------------------------
-        # 5. Generate Gemini response
+        # 5. Handle unavailable Gemini
         # --------------------------------------------------------------
 
         if not self.gemini_api_key or not hasattr(self, "llm"):
@@ -510,6 +638,10 @@ Now answer the user's question.
                 sources=sources,
             )
 
+        # --------------------------------------------------------------
+        # 6. Build prompt
+        # --------------------------------------------------------------
+
         prompt = self._build_prompt(
             request=request,
             location=location,
@@ -518,34 +650,54 @@ Now answer the user's question.
             context=context,
         )
 
+        # --------------------------------------------------------------
+        # 7. Generate Gemini response
+        # --------------------------------------------------------------
+
         try:
             response = self.llm.invoke(prompt)
 
-            # Gemini/LangChain may return content as a list of blocks
-            # instead of a plain string. ChatResponse.bot_reply requires str.
+            # Gemini/LangChain may return a plain string or a list
+            # of content blocks.
+
             if hasattr(response, "text"):
                 bot_reply = response.text
+
             elif isinstance(response.content, str):
                 bot_reply = response.content
+
             elif isinstance(response.content, list):
-                bot_reply = "\n".join(
-                    block.get("text", "")
-                    for block in response.content
-                    if isinstance(block, dict) and block.get("text")
-                ).strip()
+                text_parts = []
+
+                for block in response.content:
+                    if isinstance(block, dict):
+                        text = block.get("text")
+                        if text:
+                            text_parts.append(text)
+
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+
+                bot_reply = "\n".join(text_parts).strip()
+
             else:
                 bot_reply = str(response.content)
 
             if not isinstance(bot_reply, str):
                 bot_reply = str(bot_reply)
 
+            if not bot_reply.strip():
+                bot_reply = (
+                    "I couldn't generate a useful weather "
+                    "answer right now. Please try again."
+                )
+
         except Exception:
             logger.exception("Gemini response generation failed.")
 
             return ChatResponse(
                 bot_reply=(
-                    "I was unable to generate a response right now. "
-                    "Please try again."
+                    "I was unable to generate a response right now. Please try again."
                 ),
                 location=location,
                 weather=weather,
@@ -554,7 +706,7 @@ Now answer the user's question.
             )
 
         # --------------------------------------------------------------
-        # 6. Return standing ChatResponse contract
+        # 8. Return ChatResponse
         # --------------------------------------------------------------
 
         return ChatResponse(

@@ -9,9 +9,9 @@ POST http://127.0.0.1:8000/chat
 Content-Type: application/json
 
 {
-  "query": "What is the weather in Chennai?",
+  "query": "Should I go rafting in Meghalaya tomorrow?",
   "location": {
-    "city": "Chennai"
+    "city": "Jaipur"
   },
   "language": "English",
   "channel": "web"

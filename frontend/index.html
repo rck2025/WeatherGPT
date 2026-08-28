@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>WeatherGPT — AI Weather Assistant</title>
+
+    <meta
+        name="description"
+        content="WeatherGPT — intelligent weather forecasts, insights and practical advice."
+    >
+
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- =========================
+         SIDEBAR
+    ========================== -->
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-icon">
+                ☁
+            </div>
+
+            <div>
+                <div class="brand-name">
+                    WeatherGPT
+                </div>
+
+                <div class="brand-tagline">
+                    AI Weather Assistant
+                </div>
+            </div>
+        </div>
+
+
+        <button class="new-chat" id="newChat">
+            <span>＋</span>
+            New conversation
+        </button>
+
+
+        <div class="sidebar-section">
+
+            <div class="section-label">
+                QUICK QUESTIONS
+            </div>
+
+            <button
+                class="sidebar-question"
+                data-question="Should I carry an umbrella tomorrow?"
+            >
+                <span>☂</span>
+                Umbrella tomorrow?
+            </button>
+
+            <button
+                class="sidebar-question"
+                data-question="Is tomorrow a good day for an outdoor run?"
+            >
+                <span>🏃</span>
+                Good for a run?
+            </button>
+
+            <button
+                class="sidebar-question"
+                data-question="Will it rain tomorrow?"
+            >
+                <span>🌧</span>
+                Will it rain?
+            </button>
+
+            <button
+                class="sidebar-question"
+                data-question="What will the temperature be tomorrow?"
+            >
+                <span>🌡</span>
+                Tomorrow's temperature
+            </button>
+
+        </div>
+
+
+        <div class="sidebar-bottom">
+
+            <div class="connection">
+                <span class="connection-dot"></span>
+                <span id="connectionText">
+                    Checking API...
+                </span>
+            </div>
+
+            <div class="powered">
+                Powered by WeatherGPT AI
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =========================
+         MAIN
+    ========================== -->
+
+    <main class="main">
+
+        <!-- TOP BAR -->
+
+        <header class="topbar">
+
+            <div class="mobile-brand">
+                <div class="brand-icon small">
+                    ☁
+                </div>
+
+                <strong>
+                    WeatherGPT
+                </strong>
+            </div>
+
+
+            <div class="topbar-location">
+
+                <span class="location-pin">
+                    ◉
+                </span>
+
+                <input
+                    id="cityInput"
+                    type="text"
+                    value="Chennai"
+                    placeholder="Enter city..."
+                    autocomplete="off"
+                >
+
+            </div>
+
+
+            <div class="top-actions">
+
+                <button
+                    class="icon-button"
+                    id="clearChat"
+                    title="Clear conversation"
+                >
+                    ↻
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- =========================
+             CONTENT
+        ========================== -->
+
+        <section class="content">
+
+            <!-- WELCOME -->
+
+            <div
+                class="welcome"
+                id="welcome"
+            >
+
+                <div class="weather-orb">
+                    <div class="sun"></div>
+                    <div class="cloud">☁</div>
+                </div>
+
+
+                <div class="welcome-eyebrow">
+                    INTELLIGENT WEATHER
+                </div>
+
+
+                <h1>
+                    Ask the weather.<br>
+                    <span>Get a useful answer.</span>
+                </h1>
+
+
+                <p>
+                    Forecasts, practical advice and weather intelligence
+                    powered by live data.
+                </p>
+
+
+                <div class="suggestions">
+
+                    <button
+                        data-question="Should I carry an umbrella tomorrow?"
+                    >
+                        <span>☂</span>
+                        Should I carry an umbrella?
+                    </button>
+
+                    <button
+                        data-question="Is tomorrow a good day for an outdoor run?"
+                    >
+                        <span>🏃</span>
+                        Is tomorrow good for a run?
+                    </button>
+
+                    <button
+                        data-question="What will the weather be like tomorrow?"
+                    >
+                        <span>🌤</span>
+                        Tomorrow's weather
+                    </button>
+
+                    <button
+                        data-question="Will it rain this week?"
+                    >
+                        <span>🌧</span>
+                        Rain this week?
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- CHAT -->
+
+            <div
+                class="chat-container"
+                id="chatContainer"
+            >
+
+                <div
+                    class="messages"
+                    id="messages"
+                ></div>
+
+            </div>
+
+
+            <!-- WEATHER PANEL -->
+
+            <div
+                class="weather-panel hidden"
+                id="weatherPanel"
+            >
+
+                <div class="weather-main">
+
+                    <div>
+
+                        <div
+                            class="weather-location"
+                            id="weatherLocation"
+                        >
+                            Chennai
+                        </div>
+
+                        <div
+                            class="weather-condition"
+                            id="weatherCondition"
+                        >
+                            —
+                        </div>
+
+                    </div>
+
+
+                    <div class="weather-temperature">
+
+                        <span id="temperature">
+                            --
+                        </span>
+
+                        <sup>
+                            °C
+                        </sup>
+
+                    </div>
+
+                </div>
+
+
+                <div class="weather-metrics">
+
+                    <div class="metric">
+
+                        <span class="metric-icon">
+                            🌡
+                        </span>
+
+                        <div>
+                            <small>
+                                Feels like
+                            </small>
+
+                            <strong id="feelsLike">
+                                --
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="metric">
+
+                        <span class="metric-icon">
+                            💧
+                        </span>
+
+                        <div>
+                            <small>
+                                Humidity
+                            </small>
+
+                            <strong id="humidity">
+                                --
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="metric">
+
+                        <span class="metric-icon">
+                            💨
+                        </span>
+
+                        <div>
+                            <small>
+                                Wind
+                            </small>
+
+                            <strong id="wind">
+                                --
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <div class="metric">
+
+                        <span class="metric-icon">
+                            🌧
+                        </span>
+
+                        <div>
+                            <small>
+                                Rain
+                            </small>
+
+                            <strong id="rain">
+                                --
+                            </strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="forecast-section">
+
+                    <div class="forecast-title">
+                        FORECAST
+                    </div>
+
+                    <div
+                        class="forecast"
+                        id="forecast"
+                    ></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- COMPOSER -->
+
+            <div class="composer-wrapper">
+
+                <form
+                    class="composer"
+                    id="chatForm"
+                >
+
+                    <textarea
+                        id="queryInput"
+                        rows="1"
+                        placeholder="Ask WeatherGPT anything..."
+                        autocomplete="off"
+                    ></textarea>
+
+
+                    <button
+                        class="send-button"
+                        id="sendButton"
+                        type="submit"
+                        title="Send message"
+                    >
+                        <span>
+                            ↑
+                        </span>
+                    </button>
+
+                </form>
+
+
+                <div class="composer-footer">
+
+                    <span>
+                        WeatherGPT can make mistakes.
+                        Check official alerts during severe weather.
+                    </span>
+
+                    <span>
+                        Enter ↵ to send
+                    </span>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script src="./app.js"></script>
+
+</body>
+</html>
