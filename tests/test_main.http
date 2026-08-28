@@ -1,11 +1,27 @@
-# Test your FastAPI endpoints
+@baseUrl = http://127.0.0.1:8000
 
-GET http://127.0.0.1:8000/
+### Health check
+GET {{baseUrl}}/health
 Accept: application/json
 
 ###
 
-GET http://127.0.0.1:8000/hello/User
+### Ingest the bulletins once before testing chat
+POST {{baseUrl}}/rag/ingest
 Accept: application/json
 
 ###
+
+### Chat
+POST {{baseUrl}}/chat
+Content-Type: application/json
+Accept: application/json
+
+{
+  "query": "What is the weather in Chennai and what safety precautions should I take if it rains?",
+  "location": {
+    "city": "Kolkata"
+  },
+  "language": "en",
+  "channel": "web"
+}

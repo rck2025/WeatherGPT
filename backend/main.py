@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 
 from backend.schemas import ChatRequest, ChatResponse
 from backend.services.location.resolver import location_resolver
+from backend.services.rag.adapter import rag_service
 from backend.services.weather.open_meteo import open_meteo_service
 
 app = FastAPI(
@@ -29,14 +30,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
         # Pass the resolved Location object to Open-Meteo.
         weather = await open_meteo_service.get_weather(location)
 
-        return ChatResponse(
-            bot_reply=(
-                "Weather data fetched successfully."
-                if weather
-                else "Unable to fetch weather information."
-            ),
+        # get live alerts from alerts service
+        alerts = []
+
+        return rag_service.answer(
+            request=request,
             location=location,
             weather=weather,
+            alerts=alerts,
         )
 
     except ValueError as exc:
@@ -49,4 +50,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred.",
+        ) from exc
+
+
+@app.post("/rag/ingest")
+def ingest_rag() -> dict[str, int | str]:
+    """Manually ingest the PDF bulletins in backend/data for the MVP demo."""
+    try:
+        count = rag_service.ingest_documents()
+        return {"status": "success", "documents_processed": count}
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="RAG ingestion failed.",
         ) from exc
