@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 
 from backend.schemas import ChatRequest, ChatResponse
 from backend.services.location.resolver import location_resolver
@@ -66,3 +69,9 @@ def ingest_rag() -> dict[str, int | str]:
             status_code=500,
             detail="RAG ingestion failed.",
         ) from exc
+
+
+# Serving the frontend from this API gives desktop and phone browsers the same
+# origin, so the UI can call /chat without CORS or a hard-coded server address.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

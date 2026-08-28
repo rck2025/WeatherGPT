@@ -18,7 +18,7 @@ Content-Type: application/json
 Accept: application/json
 
 {
-  "query": "What is the weather in Chennai and what safety precautions should I take if it rains?",
+  "query": "What is the weather in Kolkata and will there be thunder storms tomorrow?",
   "location": {
     "city": "Kolkata"
   },
