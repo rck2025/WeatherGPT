@@ -17,3 +17,11 @@ faster-whisper
 deep-translator
 edge-tts
 python-multipart
+
+# --- RAG & Scraper Missing Dependencies ---
+langchain-chroma
+beautifulsoup4
+pymupdf
+python-docx
+pandas
+openpyxl
