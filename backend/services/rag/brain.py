@@ -13,7 +13,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_google_genai import (
     ChatGoogleGenerativeAI,
     GoogleGenerativeAIEmbeddings,
@@ -40,7 +40,7 @@ DB_DIR = BACKEND_DIR / "vector_db"
 load_dotenv(BACKEND_DIR / ".env")
 
 EMBEDDING_MODEL = "models/gemini-embedding-001"
-LLM_MODEL = "gemini-3.6-flash"
+LLM_MODEL = "gemini-1.5-flash"
 
 
 class WeatherGPTBrain:
@@ -70,9 +70,15 @@ class WeatherGPTBrain:
             google_api_key=self.gemini_api_key,
         )
         self.llm = ChatGoogleGenerativeAI(
-            model=self.llm_model,
-            temperature=0.2,
+            model="gemini-flash-latest",
+            temperature=0.1,
             google_api_key=self.gemini_api_key,
+            safety_settings={
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
+            }
         )
 
     @property
@@ -215,9 +221,20 @@ class WeatherGPTBrain:
             }
 
         weather_keywords = [
-            "weather", "rain", "cyclone", "flood", "heat", "ndrf", "mausam",
+            "weather", "rain", "cyclone", "flood", "heat", "ndrf", "mausam", 
+            "status", "situation", "report", "update", "condition", "warning", "alert",
+            "north", "south", "east", "west", "bengal", "kolkata", "delhi", 
+            "chennai", "mumbai", "district", "state", "region", "safe", "outside",
+            "go out", "temperature", "forecast", "umbrella", "travel", "commute", "stay"
         ]
-        if not any(word in request.query.lower() for word in weather_keywords):
+        
+        has_location = location is not None and any(
+            getattr(location, field) is not None and str(getattr(location, field)).strip() != ""
+            for field in ["city", "district", "state", "country"]
+        )
+        is_weather_query = any(word in request.query.lower() for word in weather_keywords)
+
+        if not (has_location or is_weather_query):
             return {
                 "bot_reply": (
                     "I am WeatherGPT and can help with weather and "
@@ -241,6 +258,14 @@ class WeatherGPTBrain:
             }
 
         sources: list[dict[str, Any]] = []
+        for alert in live_alerts:
+            sources.append(
+                {
+                    "content": alert.description,
+                    "source": alert.source,
+                    "score": 1.0,
+                }
+            )
         context_parts: list[str] = []
         for document, score in results:
             page = document.metadata.get("page")
@@ -257,10 +282,29 @@ class WeatherGPTBrain:
             context_parts.append(f"SOURCE: {source}\nCONTENT:\n{content}")
 
         prompt = f"""
-You are WeatherGPT, a weather and disaster-safety assistant.
-Answer the user's question with concise, practical guidance.
-Do not invent weather readings, live alerts, or official warnings.
-Clearly distinguish live data from general safety guidance.
+[AUTHORITY MODE: MoES WeatherGPT]
+You have retrieved info from multiple sources. Rank your answer as follows:
+1. If there is a 'Special Weather Bulletin' or 'Red Alert' in the context, start with that.
+2. If the user asks about water/floods, prioritize 'Chennai Hydro' or regional RMC reports.
+3. If the user asks about crops, prioritize 'Agromet' data.
+
+ALWAYS state the source clearly (e.g., 'According to RMC Guwahati...', 'Based on the Chennai Hydro advisory...', 'According to RMC Kolkata...').
+
+You are the MoES Assistant / WeatherGPT. Even if there is no Red Alert, if the user asks 'Is it safe?', check the context for 'Thunderstorms,' 'High Humidity,' or 'Heatwaves.' Provide a balanced answer like: 'It is 31.3°C in Kolkata. While no Red Alert is active, the humidity is high. According to the National Disaster Management Plan, stay hydrated if going outdoors.'
+
+You have access to a Massive Official Registry:
+1. NATIONAL BULLETINS (IMD): Highest priority for general forecasts.
+2. DISASTER SOPs (NDRF/NDMA): Highest priority for safety instructions.
+3. REGIONAL REPORTS (RMCs): Use these for city-specific details (Kolkata, Mumbai, etc.).
+4. AGROMET ADVISORIES (GKMS): Use these ONLY if the user is a farmer or asks about crops.
+5. MARINE DATA (INCOIS): Use these for coastal or sea-related queries.
+
+When answering:
+- Look at the Metadata 'source' field in the RETRIEVED BULLETINS to identify which category/agency the data belongs to.
+- Cite the specific agency (e.g., 'According to INCOIS...', 'Based on the GKMS advisory...', 'RMC Kolkata reports...') for maximum trust.
+- Answer the user's question with concise, practical guidance.
+- Do not invent weather readings, live alerts, or official warnings.
+- Clearly distinguish live data from general safety guidance.
 
 REQUESTED LANGUAGE: {request.language}
 LOCATION: {self._location_json(location)}

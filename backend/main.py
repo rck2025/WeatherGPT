@@ -3,15 +3,32 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from backend.schemas import ChatRequest, ChatResponse
+from backend.schemas import ChatRequest, ChatResponse, WeatherAlert
 from backend.services.location.resolver import location_resolver
 from backend.services.rag.adapter import rag_service
 from backend.services.weather.open_meteo import open_meteo_service
+from backend.api.v1.ingest import router as ingest_router
 
 app = FastAPI(
     title="WeatherGPT API",
     version="0.1.0",
 )
+
+app.include_router(ingest_router)
+
+alerts: list[WeatherAlert] = []
+
+
+def get_active_alerts(location: str | None = None) -> list[WeatherAlert]:
+    if not location or not location.strip():
+        return list(alerts)
+
+    loc_lower = location.strip().lower()
+    return [
+        alert
+        for alert in alerts
+        if loc_lower in alert.description.lower() or loc_lower in alert.title.lower()
+    ]
 
 
 @app.get("/health")
@@ -34,13 +51,13 @@ async def chat(request: ChatRequest) -> ChatResponse:
         weather = await open_meteo_service.get_weather(location)
 
         # get live alerts from alerts service
-        alerts = []
+        filtered_alerts = get_active_alerts(location.city)
 
         return rag_service.answer(
             request=request,
             location=location,
             weather=weather,
-            alerts=alerts,
+            alerts=filtered_alerts,
         )
 
     except ValueError as exc:
