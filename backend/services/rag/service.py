@@ -1,24 +1,11 @@
-"""RAG and Gemini logic owned by the RAG teammate.
-
-This module deliberately contains no FastAPI routes.  The project-level API
-in ``backend.main`` owns HTTP concerns; ``RAGService`` in ``adapter.py``
-adapts this class to the shared WeatherGPT schemas.
-"""
-
+import os
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
-from langchain_google_genai import (
-    ChatGoogleGenerativeAI,
-    GoogleGenerativeAIEmbeddings,
-)
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from backend.schemas import (
     ChatRequest,
@@ -27,20 +14,14 @@ from backend.schemas import (
     WeatherAlert,
     WeatherResponse,
 )
+from backend.services.rag.embeddings import get_embeddings
+from backend.services.rag.vector_store import load_vector_db, ingest_bulletins, DB_DIR, DATA_DIR
+from backend.services.rag.retriever import retrieve_documents
 
 logger = logging.getLogger(__name__)
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = BACKEND_DIR / "data"
-DB_DIR = BACKEND_DIR / "vector_db"
-
-# The key lives in backend/.env, not necessarily in the process working
-# directory.  Loading this explicit path makes ``uvicorn backend.main:app``
-# work consistently from the repository root.
 load_dotenv(BACKEND_DIR / ".env")
-
-EMBEDDING_MODEL = "models/gemini-embedding-001"
-LLM_MODEL = "gemini-3.6-flash"
 
 
 class WeatherGPTBrain:
@@ -49,30 +30,34 @@ class WeatherGPTBrain:
     def __init__(
         self,
         db_path: Path | str = DB_DIR,
-        llm_model: str = LLM_MODEL,
-        embedding_model: str = EMBEDDING_MODEL,
+        llm_model: str = "gemini-flash-latest",
+        embedding_model: str = "models/gemini-embedding-001",
     ) -> None:
         self.db_path = Path(db_path)
-        self.llm_model = llm_model
-        self.embedding_model = embedding_model
         self.gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-        self.embeddings: GoogleGenerativeAIEmbeddings | None = None
-        self.llm: ChatGoogleGenerativeAI | None = None
-        self.vector_db: Chroma | None = None
+        self.embeddings = None
+        self.llm = None
 
         if not self.gemini_api_key:
             logger.warning("GEMINI_API_KEY is not configured.")
             return
 
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            model=self.embedding_model,
-            google_api_key=self.gemini_api_key,
-        )
+        try:
+            self.embeddings = get_embeddings(self.gemini_api_key)
+        except Exception as e:
+            logger.error("Failed to load embeddings: %s", e)
+
         self.llm = ChatGoogleGenerativeAI(
-            model=self.llm_model,
-            temperature=0.2,
+            model=llm_model,
+            temperature=0.1,
             google_api_key=self.gemini_api_key,
+            safety_settings={
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
+            }
         )
 
     @property
@@ -81,63 +66,7 @@ class WeatherGPTBrain:
 
     def ingest_bulletins(self, data_path: Path | str = DATA_DIR) -> int:
         """Build or refresh the local Chroma database from PDFs in data_path."""
-        if not self.is_configured:
-            raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-        bulletin_dir = Path(data_path)
-        pdf_files = sorted(bulletin_dir.glob("*.pdf")) if bulletin_dir.is_dir() else []
-
-        if not pdf_files:
-            raise FileNotFoundError(
-                f"No PDF bulletins found in {bulletin_dir}."
-            )
-
-        documents = []
-        for pdf_file in pdf_files:
-            documents.extend(PyPDFLoader(str(pdf_file)).load())
-
-        if not documents:
-            raise RuntimeError("PDF bulletins were found, but no text could be extracted.")
-
-        chunks = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=150,
-        ).split_documents(documents)
-
-        if not chunks:
-            raise RuntimeError("No RAG chunks could be created from the PDF bulletins.")
-
-        self.db_path.mkdir(parents=True, exist_ok=True)
-        self.vector_db = Chroma.from_documents(
-            documents=chunks,
-            embedding=self.embeddings,
-            persist_directory=str(self.db_path),
-        )
-        logger.info(
-            "Ingested %d PDF bulletin(s) into %s.",
-            len(pdf_files),
-            self.db_path,
-        )
-        return len(pdf_files)
-
-    def _load_vector_db(self) -> bool:
-        """Load an already-ingested local database when one is available."""
-        if self.vector_db is not None:
-            return True
-
-        if not self.is_configured or not self.db_path.is_dir():
-            return False
-
-        try:
-            self.vector_db = Chroma(
-                persist_directory=str(self.db_path),
-                embedding_function=self.embeddings,
-            )
-            return True
-        except Exception:
-            logger.exception("Could not load the RAG vector database.")
-            self.vector_db = None
-            return False
+        return ingest_bulletins(data_path=data_path, db_path=self.db_path, embeddings=self.embeddings)
 
     @staticmethod
     def _response_text(response: Any) -> str:
@@ -204,7 +133,8 @@ class WeatherGPTBrain:
         generated_alerts = self._build_generated_alerts(weather_data)
         response_alerts = [*live_alerts, *generated_alerts]
 
-        if not self._load_vector_db():
+        vector_db = load_vector_db(self.db_path, self.embeddings)
+        if vector_db is None:
             return {
                 "bot_reply": (
                     "I do not have an ingested disaster bulletin yet. "
@@ -215,9 +145,20 @@ class WeatherGPTBrain:
             }
 
         weather_keywords = [
-            "weather", "rain", "cyclone", "flood", "heat", "ndrf", "mausam",
+            "weather", "rain", "cyclone", "flood", "heat", "ndrf", "mausam", 
+            "status", "situation", "report", "update", "condition", "warning", "alert",
+            "north", "south", "east", "west", "bengal", "kolkata", "delhi", 
+            "chennai", "mumbai", "district", "state", "region", "safe", "outside",
+            "go out", "temperature", "forecast", "umbrella", "travel", "commute", "stay"
         ]
-        if not any(word in request.query.lower() for word in weather_keywords):
+        
+        has_location = location is not None and any(
+            getattr(location, field) is not None and str(getattr(location, field)).strip() != ""
+            for field in ["city", "district", "state", "country"]
+        )
+        is_weather_query = any(word in request.query.lower() for word in weather_keywords)
+
+        if not (has_location or is_weather_query):
             return {
                 "bot_reply": (
                     "I am WeatherGPT and can help with weather and "
@@ -227,20 +168,17 @@ class WeatherGPTBrain:
                 "sources": [],
             }
 
-        try:
-            results = self.vector_db.similarity_search_with_relevance_scores(
-                request.query,
-                k=3,
-            )
-        except Exception:
-            logger.exception("RAG retrieval failed.")
-            return {
-                "bot_reply": "I could not retrieve disaster-safety guidance right now.",
-                "alerts": response_alerts,
-                "sources": [],
-            }
+        results = retrieve_documents(vector_db, request.query, k=3)
 
         sources: list[dict[str, Any]] = []
+        for alert in live_alerts:
+            sources.append(
+                {
+                    "content": alert.description,
+                    "source": alert.source,
+                    "score": 1.0,
+                }
+            )
         context_parts: list[str] = []
         for document, score in results:
             page = document.metadata.get("page")
@@ -257,10 +195,29 @@ class WeatherGPTBrain:
             context_parts.append(f"SOURCE: {source}\nCONTENT:\n{content}")
 
         prompt = f"""
-You are WeatherGPT, a weather and disaster-safety assistant.
-Answer the user's question with concise, practical guidance.
-Do not invent weather readings, live alerts, or official warnings.
-Clearly distinguish live data from general safety guidance.
+[AUTHORITY MODE: MoES WeatherGPT]
+You have retrieved info from multiple sources. Rank your answer as follows:
+1. If there is a 'Special Weather Bulletin' or 'Red Alert' in the context, start with that.
+2. If the user asks about water/floods, prioritize 'Chennai Hydro' or regional RMC reports.
+3. If the user asks about crops, prioritize 'Agromet' data.
+
+ALWAYS state the source clearly (e.g., 'According to RMC Guwahati...', 'Based on the Chennai Hydro advisory...', 'According to RMC Kolkata...').
+
+You are the MoES Assistant / WeatherGPT. Even if there is no Red Alert, if the user asks 'Is it safe?', check the context for 'Thunderstorms,' 'High Humidity,' or 'Heatwaves.' Provide a balanced answer like: 'It is 31.3°C in Kolkata. While no Red Alert is active, the humidity is high. According to the National Disaster Management Plan, stay hydrated if going outdoors.'
+
+You have access to a Massive Official Registry:
+1. NATIONAL BULLETINS (IMD): Highest priority for general forecasts.
+2. DISASTER SOPs (NDRF/NDMA): Highest priority for safety instructions.
+3. REGIONAL REPORTS (RMCs): Use these for city-specific details (Kolkata, Mumbai, etc.).
+4. AGROMET ADVISORIES (GKMS): Use these ONLY if the user is a farmer or asks about crops.
+5. MARINE DATA (INCOIS): Use these for coastal or sea-related queries.
+
+When answering:
+- Look at the Metadata 'source' field in the RETRIEVED BULLETINS to identify which category/agency the data belongs to.
+- Cite the specific agency (e.g., 'According to INCOIS...', 'Based on the GKMS advisory...', 'RMC Kolkata reports...') for maximum trust.
+- Answer the user's question with concise, practical guidance.
+- Do not invent weather readings, live alerts, or official warnings.
+- Clearly distinguish live data from general safety guidance.
 
 REQUESTED LANGUAGE: {request.language}
 LOCATION: {self._location_json(location)}
