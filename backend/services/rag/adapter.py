@@ -11,7 +11,7 @@ from backend.schemas import (
     WeatherAlert,
     WeatherResponse,
 )
-from backend.services.rag.brain import WeatherGPTBrain
+from backend.services.rag.service import WeatherGPTBrain
 
 logger = logging.getLogger(__name__)
 

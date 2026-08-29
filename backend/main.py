@@ -5,12 +5,12 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from backend.schemas import ChatRequest, ChatResponse
+from backend.schemas import ChatRequest, ChatResponse, WeatherAlert
 from backend.services.language import language_router, language_service
 from backend.services.location.resolver import location_resolver
 from backend.services.rag.adapter import rag_service
 from backend.services.weather.open_meteo import open_meteo_service
-
+from backend.services.api.v1.ingest import router as ingest_router
 
 # ------------------------------------------------------------------
 # LANGUAGE UTILITIES
@@ -49,12 +49,26 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# ------------------------------------------------------------------
-# VOICE & LANGUAGE ROUTER
-# Mounted under /voice — exposes /voice/languages, /voice/transcribe,
-# /voice/synthesize, /voice/synthesize-json, /voice/audio/{filename}
-# ------------------------------------------------------------------
+app.include_router(ingest_router)
 app.include_router(language_router, prefix="/voice", tags=["Voice & Language"])
+
+
+# ------------------------------------------------------------------
+# ALERTS STATE MANAGEMENT
+# ------------------------------------------------------------------
+alerts: list[WeatherAlert] = []
+
+
+def get_active_alerts(location: str | None = None) -> list[WeatherAlert]:
+    if not location or not location.strip():
+        return list(alerts)
+
+    loc_lower = location.strip().lower()
+    return [
+        alert
+        for alert in alerts
+        if loc_lower in alert.description.lower() or loc_lower in alert.title.lower()
+    ]
 
 
 # ------------------------------------------------------------------
@@ -108,14 +122,14 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
         weather = await open_meteo_service.get_weather(location)
 
         # ── Step 4: RAG / AI Brain (always in English) ──
-        alerts = []
+        filtered_alerts = get_active_alerts(location.city)
         # Use model_copy so the original frozen request object is never mutated
         english_request = request.model_copy(update={"query": english_query})
         chat_response = rag_service.answer(
             request=english_request,
             location=location,
             weather=weather,
-            alerts=alerts,
+            alerts=filtered_alerts,
         )
 
         # ── Step 5: translate bot_reply into the user's target language ──
