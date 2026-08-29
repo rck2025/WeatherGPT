@@ -48,3 +48,6 @@ frontend/build/
 *.sqlite
 *.sqlite3
 vector_db/
+
+# Temporary voice audio files
+backend/services/language/audio_tmp/
