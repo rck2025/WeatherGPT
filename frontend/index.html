@@ -1,135 +1,201 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#102a43" />
-    <title>WeatherGPT</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="/" aria-label="WeatherGPT home">
-          <span class="brand-mark" aria-hidden="true">☁</span>
-          <span>WeatherGPT</span>
-        </a>
-        <span class="connection-status" id="connectionStatus" aria-live="polite">
-          Checking service…
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d1b2a" />
+  <meta name="description" content="WeatherGPT — practical weather guidance and safety alerts for your location, with regional language support." />
+  <title>WeatherGPT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <!-- Brand -->
+      <a class="brand" href="/" aria-label="WeatherGPT home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          </svg>
         </span>
-      </header>
+        <span>WeatherGPT</span>
+      </a>
 
-      <section class="conversation" id="conversation" aria-live="polite">
-        <article class="welcome-card">
-          <p class="eyebrow">Weather &amp; safety assistant</p>
-          <h1>Practical weather guidance, based on your location.</h1>
-          <p>
-            Use your device location, or enter a city, district, landmark, or PIN code.
-          </p>
+      <!-- Location pill — Rapido-style top placement -->
+      <button class="location-pill" id="locationButton" type="button" aria-expanded="false" aria-haspopup="true"
+        title="Set your location">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+        <span class="location-pill-label" id="locationButtonLabel">Set location</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          stroke-linecap="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
-          <div class="prompt-list" aria-label="Example questions">
-            <button class="prompt-chip" type="button" data-prompt="What is the weather today?">
-              What is the weather today?
-            </button>
-            <button class="prompt-chip" type="button" data-prompt="Will it rain in the next few hours?">
-              Will it rain in the next few hours?
-            </button>
-            <button class="prompt-chip" type="button" data-prompt="What safety precautions should I take during heavy rain?">
-              Heavy-rain safety precautions
-            </button>
-          </div>
-        </article>
-      </section>
-    </main>
+      <span class="topbar-spacer"></span>
 
-    <section class="composer-area" aria-label="Ask WeatherGPT">
-      <div class="location-panel" id="locationPanel">
-        <div class="location-panel__header">
-          <div>
-            <p class="eyebrow">Location</p>
-            <p class="location-summary" id="locationSummary">Choose GPS or enter a location.</p>
-          </div>
-          <button class="text-button" id="closeLocationButton" type="button">Done</button>
-        </div>
+      <div class="topbar-right">
+        <span class="connection-status" id="connectionStatus" aria-live="polite">Checking…</span>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode"
+          title="Toggle dark mode">
+          <!-- Icon swapped by JS -->
+          <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </button>
+      </div>
+    </header>
 
-        <div class="location-choice" role="group" aria-label="Choose location method">
-          <button class="location-choice__button is-active" id="gpsModeButton" type="button">
-            Use device location
+    <section class="conversation" id="conversation" aria-live="polite">
+      <article class="welcome-card">
+        <p class="eyebrow">Weather &amp; safety assistant</p>
+        <h1>Practical weather guidance, based on your location.</h1>
+        <p>
+          Use your device location, or enter a city, district, landmark, or PIN code.
+          Ask in English or any Indian regional language.
+        </p>
+
+        <div class="prompt-list" aria-label="Example questions">
+          <button class="prompt-chip" type="button" data-prompt="What is the weather today?">
+            What is the weather today?
           </button>
-          <button class="location-choice__button" id="manualModeButton" type="button">
-            Enter manually
+          <button class="prompt-chip" type="button" data-prompt="Will it rain in the next few hours?">
+            Will it rain in the next few hours?
+          </button>
+          <button class="prompt-chip" type="button"
+            data-prompt="What safety precautions should I take during heavy rain?">
+            Heavy-rain safety precautions
           </button>
         </div>
+      </article>
+    </section>
+  </main>
 
-        <div class="gps-section" id="gpsSection">
-          <p class="helper-text">
-            Your browser shares coordinates only. WeatherGPT uses them to find the place name.
-          </p>
-          <button class="secondary-button" id="gpsButton" type="button">
-            <span aria-hidden="true">⌖</span> Use my location
-          </button>
-          <p class="location-feedback" id="gpsFeedback" aria-live="polite"></p>
+  <!-- Fixed composer bar -->
+  <section class="composer-area" aria-label="Ask WeatherGPT">
+
+    <!-- Location panel (opens above composer) -->
+    <div class="location-panel" id="locationPanel">
+      <div class="location-panel__header">
+        <div>
+          <p class="eyebrow">Location</p>
+          <p class="location-summary" id="locationSummary">Choose GPS or enter a location.</p>
         </div>
-
-        <label class="manual-section" id="manualSection" for="manualLocation">
-          <span>City, district, landmark, or PIN code</span>
-          <input
-            id="manualLocation"
-            name="manualLocation"
-            type="text"
-            autocomplete="address-level2"
-            placeholder="For example: Chennai or 700001"
-          />
-          <small>This text is sent as <code>location.raw_text</code>.</small>
-        </label>
+        <button class="text-button" id="closeLocationButton" type="button">Done</button>
       </div>
 
-      <div class="composer-wrap">
-        <button class="location-button" id="locationButton" type="button" aria-expanded="false">
-          <span aria-hidden="true">⌖</span>
-          <span id="locationButtonLabel">Location</span>
+      <div class="location-choice" role="group" aria-label="Choose location method">
+        <button class="location-choice__button is-active" id="gpsModeButton" type="button">
+          Use device location
         </button>
+        <button class="location-choice__button" id="manualModeButton" type="button">
+          Enter manually
+        </button>
+      </div>
 
-        <form class="composer" id="chatForm">
-          <label class="sr-only" for="queryInput">Ask a weather question</label>
-          <textarea
-            id="queryInput"
-            name="query"
-            rows="1"
-            maxlength="1000"
-            placeholder="Ask about the weather or staying safe…"
-            required
-          ></textarea>
+      <div class="gps-section" id="gpsSection">
+        <p class="helper-text">
+          Your browser shares coordinates only. WeatherGPT uses them to find the place name.
+        </p>
+        <button class="secondary-button" id="gpsButton" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
+            <line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="5" y2="12" /><line x1="19" y1="12" x2="22" y2="12" />
+          </svg>
+          Use my location
+        </button>
+        <p class="location-feedback" id="gpsFeedback" aria-live="polite"></p>
+      </div>
 
-          <div class="composer-actions">
+      <label class="manual-section" id="manualSection" for="manualLocation">
+        <span>City, district, landmark, or PIN code</span>
+        <input id="manualLocation" name="manualLocation" type="text" autocomplete="address-level2"
+          placeholder="For example: Chennai or 700001" />
+        <small>This text is sent as <code>location.raw_text</code>.</small>
+      </label>
+    </div>
+
+    <!-- Chat input -->
+    <div class="composer-wrap">
+      <form class="composer" id="chatForm">
+        <label class="sr-only" for="queryInput">Ask a weather question</label>
+        <textarea id="queryInput" name="query" rows="1" maxlength="1000"
+          placeholder="Ask about the weather or staying safe…" required></textarea>
+
+        <div class="composer-actions">
+          <div class="lang-select-wrap">
             <label class="sr-only" for="languageSelect">Response language</label>
             <select id="languageSelect" name="language" title="Response language">
               <option value="en">English</option>
-              <option value="hi">Hindi</option>
+              <option value="hi">हिंदी (Hindi)</option>
+              <option value="bn">বাংলা (Bengali)</option>
+              <option value="ta">தமிழ் (Tamil)</option>
+              <option value="te">తెలుగు (Telugu)</option>
+              <option value="mr">मराठी (Marathi)</option>
+              <option value="gu">ગુજરાતી (Gujarati)</option>
+              <option value="kn">ಕನ್ನಡ (Kannada)</option>
+              <option value="ml">മലയാളം (Malayalam)</option>
+              <option value="ur">اردو (Urdu)</option>
             </select>
-            <button class="icon-button" id="voiceButton" type="button" title="Use voice input" aria-label="Use voice input">
-              <span aria-hidden="true">◉</span>
-            </button>
-            <button class="send-button" id="sendButton" type="submit">
-              Send <span aria-hidden="true">↑</span>
-            </button>
           </div>
-        </form>
-      </div>
-      <p class="privacy-note">Your location is used only to answer this weather request.</p>
-    </section>
 
-    <template id="userMessageTemplate">
-      <article class="message message--user"><p></p></article>
-    </template>
-    <template id="assistantMessageTemplate">
-      <article class="message message--assistant">
-        <p class="message-label">WeatherGPT</p>
-        <div class="message-content"></div>
-        <div class="message-meta"></div>
-      </article>
-    </template>
+          <!-- Mic button with two ripple rings for recording animation -->
+          <button class="mic-button" id="voiceButton" type="button" aria-label="Use voice input"
+            title="Voice input — tap and speak">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 10c0 3.866 3.134 7 7 7s7-3.134 7-7" />
+              <line x1="12" y1="17" x2="12" y2="22" />
+              <line x1="8" y1="22" x2="16" y2="22" />
+            </svg>
+            <span class="mic-ripple" aria-hidden="true"></span>
+            <span class="mic-ripple-2" aria-hidden="true"></span>
+          </button>
 
-    <script src="app.js"></script>
-  </body>
+          <button class="send-button" id="sendButton" type="submit">
+            Send
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5" />
+              <polyline points="5 12 12 5 19 12" />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+    <p class="privacy-note">Your location is used only to answer this weather request.</p>
+  </section>
+
+  <!-- Message templates -->
+  <template id="userMessageTemplate">
+    <article class="message message--user">
+      <p></p>
+    </article>
+  </template>
+
+  <template id="assistantMessageTemplate">
+    <article class="message message--assistant">
+      <!-- WeatherGPT label removed: the glass card + left-alignment is the identity -->
+      <div class="message-content"></div>
+      <div class="message-meta"></div>
+    </article>
+  </template>
+
+  <script src="app.js?v=3"></script>
+</body>
+
 </html>

@@ -2,6 +2,7 @@ const state = {
   locationMode: "gps",
   gpsLocation: null,
   isSending: false,
+  isVoiceMode: false,  // true while mic is active → sets channel:"voice"
 };
 
 const elements = {
@@ -24,6 +25,8 @@ const elements = {
   gpsFeedback: document.querySelector("#gpsFeedback"),
   manualLocation: document.querySelector("#manualLocation"),
   connectionStatus: document.querySelector("#connectionStatus"),
+  themeToggle: document.querySelector("#themeToggle"),
+  themeIcon: document.querySelector("#themeIcon"),
   userMessageTemplate: document.querySelector("#userMessageTemplate"),
   assistantMessageTemplate: document.querySelector("#assistantMessageTemplate"),
 };
@@ -247,6 +250,18 @@ function appendAssistantMessage(response) {
     addMetaPill(meta, source.source);
   }
 
+  // Audio playback — populated when channel=="voice" is sent
+  if (response.audio_url) {
+    const audioWrap = document.createElement("div");
+    audioWrap.className = "audio-player";
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.autoplay = true;
+    audio.src = response.audio_url;
+    audioWrap.append(audio);
+    node.querySelector(".message-content").after(audioWrap);
+  }
+
   elements.conversation.append(node);
   node.scrollIntoView({ behavior: "smooth", block: "end" });
 }
@@ -271,7 +286,9 @@ function setSending(isSending) {
   state.isSending = isSending;
   elements.sendButton.disabled = isSending;
   elements.queryInput.disabled = isSending;
-  elements.sendButton.innerHTML = isSending ? "Sending…" : "Send <span aria-hidden=\"true\">↑</span>";
+  elements.sendButton.innerHTML = isSending
+    ? "Sending\u2026"
+    : `Send <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
 }
 
 async function sendChat(event) {
@@ -302,9 +319,10 @@ async function sendChat(event) {
         query,
         location,
         language: elements.languageSelect.value,
-        channel: "web",
+        channel: state.isVoiceMode ? "voice" : "web",
       }),
     });
+    state.isVoiceMode = false;  // reset after each send
 
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -322,7 +340,169 @@ async function sendChat(event) {
   }
 }
 
+let mediaRecorder = null;
+let audioChunks = [];
+
 function setupVoiceInput() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+    setupWebSpeechFallback();
+    return;
+  }
+
+  elements.voiceButton.addEventListener("click", async () => {
+    // Single click while recording → manual stop, transcription fires automatically
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      return;
+    }
+
+    let stream, audioCtx, silenceChecker, noSpeechTimer;
+
+    const cleanup = () => {
+      clearInterval(silenceChecker);
+      clearTimeout(noSpeechTimer);
+      if (audioCtx) audioCtx.close().catch(() => {});
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+
+      // ── Silence detection via Web Audio API ───────────────────
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+      const pcmData = new Uint8Array(analyser.frequencyBinCount);
+
+      let hadSpeech = false;
+      let silenceStart = null;
+
+      // Auto-cancel after 4 s if nothing was ever spoken
+      noSpeechTimer = setTimeout(() => {
+        if (!hadSpeech && mediaRecorder && mediaRecorder.state === "recording") {
+          audioChunks = [];   // discard → onstop skips sending
+          mediaRecorder.stop();
+          appendStatusMessage("No speech detected — tap the mic and speak clearly.", true);
+        }
+      }, 4000);
+
+      // Poll RMS 10× per second
+      silenceChecker = setInterval(() => {
+        analyser.getByteTimeDomainData(pcmData);
+        let sum = 0;
+        for (let i = 0; i < pcmData.length; i++) {
+          const v = (pcmData[i] / 128) - 1;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / pcmData.length);
+
+        if (rms > 0.012) {
+          // Active speech detected
+          hadSpeech = true;
+          silenceStart = null;
+          clearTimeout(noSpeechTimer);   // speech found — cancel the no-speech guard
+        } else if (hadSpeech) {
+          // Speech was heard before; now tracking trailing silence
+          silenceStart = silenceStart ?? Date.now();
+          if (Date.now() - silenceStart >= 2000) {
+            // 2 s of silence after speech → auto-stop
+            clearInterval(silenceChecker);
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+              mediaRecorder.stop();
+            }
+          }
+        }
+      }, 100);
+      // ──────────────────────────────────────────────────────────
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "");
+
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstart = () => {
+        elements.voiceButton.classList.add("is-listening");
+        elements.voiceButton.setAttribute("aria-label", "Recording\u2026 Click to stop");
+        state.isVoiceMode = true;
+      };
+
+      mediaRecorder.onstop = async () => {
+        cleanup();
+        elements.voiceButton.classList.remove("is-listening");
+        elements.voiceButton.setAttribute("aria-label", "Use voice input");
+
+        if (audioChunks.length === 0) return;
+
+        const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        const formData = new FormData();
+        formData.append("file", audioBlob, "voice_input.webm");
+        // Only hint language for regional selections; no hint = Whisper auto-detects
+        const selectedLang = elements.languageSelect.value;
+        if (selectedLang && selectedLang !== "en") {
+          formData.append("language", selectedLang);
+        }
+
+        const statusMsg = appendStatusMessage("Transcribing audio & detecting language\u2026");
+
+        try {
+          const res = await fetch("/voice/transcribe", { method: "POST", body: formData });
+          if (!res.ok) throw new Error("Voice transcription failed.");
+
+          const data = await res.json();
+          if (data.original_text) {
+            elements.queryInput.value = data.original_text;
+            autoResize();
+            elements.queryInput.focus();
+            // Auto-switch dropdown to detected language
+            if (data.detected_language && elements.languageSelect.querySelector(`option[value="${data.detected_language}"]`)) {
+              elements.languageSelect.value = data.detected_language;
+            }
+          }
+        } catch {
+          appendStatusMessage("Could not transcribe speech. Please type your question instead.", true);
+        } finally {
+          statusMsg.remove();
+        }
+      };
+
+      mediaRecorder.start();
+    } catch {
+      cleanup();
+      appendStatusMessage("Microphone permission was denied or unavailable.", true);
+    }
+  });
+}
+
+// ── Dark Mode ────────────────────────────────────────────────────────────────
+const MOON_SVG = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+const SUN_SVG  = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+
+function setTheme(dark) {
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  if (elements.themeIcon) elements.themeIcon.innerHTML = dark ? MOON_SVG : SUN_SVG;
+  if (elements.themeToggle) elements.themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  localStorage.setItem("wgpt-theme", dark ? "dark" : "light");
+}
+
+function initDarkMode() {
+  const saved = localStorage.getItem("wgpt-theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  setTheme(saved ? saved === "dark" : prefersDark);
+  if (elements.themeToggle) {
+    elements.themeToggle.addEventListener("click", () => {
+      setTheme(document.documentElement.getAttribute("data-theme") !== "dark");
+    });
+  }
+}
+
+function setupWebSpeechFallback() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     elements.voiceButton.disabled = true;
@@ -334,8 +514,16 @@ function setupVoiceInput() {
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
 
+  const langToBcp47 = {
+    en: "en-IN", hi: "hi-IN", bn: "bn-IN", ta: "ta-IN",
+    te: "te-IN", mr: "mr-IN", gu: "gu-IN", kn: "kn-IN",
+    ml: "ml-IN", ur: "ur-IN",
+  };
+
   elements.voiceButton.addEventListener("click", () => {
-    recognition.lang = elements.languageSelect.value === "hi" ? "hi-IN" : "en-IN";
+    const lang = elements.languageSelect.value || "en";
+    recognition.lang = langToBcp47[lang] || "en-IN";
+    state.isVoiceMode = true;
     recognition.start();
   });
 
@@ -354,6 +542,7 @@ function setupVoiceInput() {
     elements.queryInput.focus();
   });
   recognition.addEventListener("error", () => {
+    state.isVoiceMode = false;
     appendStatusMessage("Voice input was unavailable. Please type your question instead.", true);
   });
 }
@@ -390,3 +579,4 @@ elements.manualLocation.addEventListener("input", updateLocationLabel);
 setLocationMode("gps");
 setupVoiceInput();
 checkConnection();
+initDarkMode();
