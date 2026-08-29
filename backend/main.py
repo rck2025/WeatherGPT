@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -8,6 +9,12 @@ from backend.services.location.resolver import location_resolver
 from backend.services.rag.adapter import rag_service
 from backend.services.weather.open_meteo import open_meteo_service
 
+# ------------------------------------------------------------------
+# [NEW] PATH CONFIGURATION (MacOS / Platform Independent)
+# ------------------------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent  # This is the 'backend' folder
+PROJECT_ROOT = BASE_DIR.parent              # This is the 'WeatherGPT' root
+FRONTEND_DIR = PROJECT_ROOT / "frontend"    # This is the 'frontend' folder
 app = FastAPI(
     title="WeatherGPT API",
     version="0.1.0",
@@ -18,9 +25,14 @@ app = FastAPI(
 def health_check():
     return {"status": "ok"}
 
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+# ------------------------------------------------------------------
+# [NEW] UNIFIED WEATHER LOGIC (The Central Core)
+# ------------------------------------------------------------------
+async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
+    """
+    Unified pipeline used to ensure text and voice (later)
+    always provide the same reasoning.
+    """
     try:
         # Resolve the user's location first.
         location = location_resolver.resolve(request.location)
@@ -55,6 +67,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
             detail="An unexpected error occurred.",
         ) from exc
 
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest) -> ChatResponse:
+    """Entry point for text-based chat queries"""
+    return await execute_weather_logic(request)
+
 
 @app.post("/rag/ingest")
 def ingest_rag() -> dict[str, int | str]:
@@ -73,5 +90,15 @@ def ingest_rag() -> dict[str, int | str]:
 
 # Serving the frontend from this API gives desktop and phone browsers the same
 # origin, so the UI can call /chat without CORS or a hard-coded server address.
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# ------------------------------------------------------------------
+# [CHANGED] FRONTEND MOUNTING
+# ------------------------------------------------------------------
+# Serves the static frontend from the folder outside the backend folder
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+else:
+    logging.warning(f"Frontend folder not found at: {FRONTEND_DIR}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="localhost", port=8000)
