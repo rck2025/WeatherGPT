@@ -1,0 +1,42 @@
+{
+  "National_IMD": [
+    "https://mausam.imd.gov.in/responsive/all_india_forcast_bulletin.php",
+    "https://mausam.imd.gov.in/responsive/all_india_forcast_bulletin_archive.php",
+    "https://mausam.imd.gov.in/responsive/monsooninformation.php",
+    "https://mausam.imd.gov.in/imd_latest/contents/season_report.php/districtwise-warning.php",
+    "https://internal.imd.gov.in/pages/press_release_mausam.php",
+    "https://mausam.imd.gov.in/imd_latest/contents/weather_report.php"
+  ],
+  "Regional_RMCs": [
+    "https://mausam.imd.gov.in/kolkata/",
+    "https://mausam.imd.gov.in/mumbai/?lang=en",
+    "https://mausam.imd.gov.in/chennai/",
+    "https://mausam.imd.gov.in/newdelhi/",
+    "https://mausam.imd.gov.in/newdelhi/archived_reports.php",
+    "https://mausam.imd.gov.in/guwahati/",
+    "https://mausam.imd.gov.in/nagpur/",
+    "https://mausam.imd.gov.in/imd_latest/contents/Todaysweather_mc.php?id=25",
+    "https://mausam.imd.gov.in/nagpur/mcdata/rdwr.pdf",
+    "https://mausam.imd.gov.in/guwahati/mcdata/dwr.pdf"
+  ],
+  "Disaster_Management": [
+    "https://sachet.ndma.gov.in/",
+    "https://sachet.ndma.gov.in/Dashboard",
+    "https://sachet.ndma.gov.in/CapFeed",
+    "https://sachet.ndma.gov.in/DosDont",
+    "https://ndrf.gov.in/en/order-circulars",
+    "https://ndrf.gov.in/en/community-action-disaster-response-and-borewell-rescue",
+    "https://ndrf.gov.in/hi/order-circulars?page=4",
+    "https://ndma.gov.in/"
+  ],
+  "Marine_Hazards": [
+    "https://www.incois.gov.in/oceanservices/osfforecast.jsp",
+    "https://incois.gov.in/site/services/jointbulletin.jsp"
+  ],
+  "Agromet": [
+    "https://imdagrimet.gov.in/",
+    "https://imdagrimet.gov.in/Services/NationalBulletin.php?language=English",
+    "https://imdagrimet.gov.in/cropAdvisory_3.php",
+    "https://agromet.imd.gov.in/"
+  ]
+}
