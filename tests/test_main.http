@@ -6,9 +6,41 @@ Accept: application/json
 
 ###
 
-### Ingest the bulletins once before testing chat
+### Ingest the local PDFs to Chroma (Vector DB)
 POST {{baseUrl}}/rag/ingest
 Accept: application/json
+
+###
+
+### Concurrent Batch Ingest (Live Web Scraper)
+POST {{baseUrl}}/api/v1/ingest/batch
+Content-Type: application/json
+
+{
+  "sources": [
+    "https://mausam.imd.gov.in/kolkata/"
+  ],
+  "max_workers": 5
+}
+
+###
+
+### Get Supported Voice Languages
+GET {{baseUrl}}/voice/languages
+Accept: application/json
+
+###
+
+### Synthesize Audio (JSON response)
+POST {{baseUrl}}/voice/synthesize-json
+Content-Type: application/json
+Accept: application/json
+
+{
+  "text": "WeatherGPT is active. Thunderstorms are expected tomorrow in Kolkata.",
+  "target_language": "en",
+  "source_is_english": true
+}
 
 ###
 
@@ -25,3 +57,5 @@ Accept: application/json
   "language": "en",
   "channel": "web"
 }
+
+###
