@@ -35,7 +35,7 @@ graph TD
         loc & weather & alert_store --> rag_service[adapter.py: RAGService]
         rag_service --> chroma_search{Chroma Similarity Search}
         chroma_search -- k=3 Documents --> brain[service.py: WeatherGPTBrain]
-        brain -- Authority Mode Prompt --> llm[Gemini LLM: gemini-flash-latest]
+        brain -- Authority Mode Prompt --> llm[Gemini LLM: gemini-2.5-pro]
         llm --> response[Structured ChatResponse]
     end
 
@@ -48,37 +48,43 @@ graph TD
 
 ## 📁 File Structure & Mapping
 
-Here are the key modules and their file locations in the repository:
+<details>
+<summary>Click to expand file map</summary>
 
 *   **Ingestion & Scraper Service**:
-    *   [`source_registry.json`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/data/source_registry.json): Registry of trusted links/feeds (National IMD, RMCs, Disaster Management, Marine, Agromet).
-    *   [`hunter.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/hunter.py): Crawls and scans links in the registry to identify and fetch PDF bulletins, then issues batch ingestion calls.
-    *   [`scraper.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/scraper.py): Universal document text extractor supporting Web URLs, HTML, PDF, Word (DOCX), Excel (XLSX), JSON, and Plain Text.
-    *   [`adapter.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/adapter.py): Transforms and maps scraped raw text to a structured `WeatherAlert` schema, handling location detection and severity parsing.
-    *   [`ingest.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/api/v1/ingest.py): FastAPI batch router that handles concurrent multi-source document ingestion.
+    *   `backend/data/source_registry.json`: Registry of trusted links/feeds (National IMD, RMCs, Disaster Management, Marine, Agromet).
+    *   `backend/services/ingestion/hunter.py`: Crawls and scans links in the registry to identify and fetch PDF bulletins, then issues batch ingestion calls.
+    *   `backend/services/ingestion/scraper.py`: Universal document text extractor supporting Web URLs, HTML, PDF, Word (DOCX), Excel (XLSX), JSON, and Plain Text.
+    *   `backend/services/ingestion/adapter.py`: Transforms and maps scraped raw text to a structured `WeatherAlert` schema, handling location detection and severity parsing.
+    *   `backend/services/api/v1/ingest.py`: FastAPI batch router that handles concurrent multi-source document ingestion.
 *   **RAG Core**:
-    *   [`embeddings.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/rag/embeddings.py): Handles GoogleGenerativeAIEmbeddings setup.
-    *   [`vector_store.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/rag/vector_store.py): Directs database storage loader and PDF file batch parsing.
-    *   [`retriever.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/rag/retriever.py): Executes ChromaDB similarity querying.
-    *   [`service.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/rag/service.py): High-level coordinator coordinating vectors retrieval, prompting, and Gemini model generation.
-    *   [`adapter.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/rag/adapter.py): Wraps the coordinator to provide a stable schema integration with the API endpoints.
+    *   `backend/services/rag/embeddings.py`: Handles GoogleGenerativeAIEmbeddings setup.
+    *   `backend/services/rag/vector_store.py`: Directs database storage loader and PDF file batch parsing.
+    *   `backend/services/rag/retriever.py`: Executes ChromaDB similarity querying.
+    *   `backend/services/rag/service.py`: High-level coordinator handling vector retrieval, prompting, and Gemini model generation.
+    *   `backend/services/rag/adapter.py`: Wraps the coordinator to provide a stable schema integration with the API endpoints.
 *   **API & Core**:
-    *   [`main.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/main.py): FastAPI app entry point exposing endpoints, managing state, and mounting the static frontend.
-    *   [`schemas.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/schemas.py): Pydantic specifications for shared data exchange (Weather, Locations, Alerts, RAG documents, ChatRequest, and ChatResponse).
+    *   `backend/main.py`: FastAPI app entry point exposing endpoints, managing state, and mounting the static frontend.
+    *   `backend/schemas.py`: Pydantic specifications for shared data exchange (Weather, Locations, Alerts, RAG documents, ChatRequest, and ChatResponse).
+
+</details>
 
 ---
 
 ## 🕷️ The Scraper Pipeline (`ingestion`)
 
+<details>
+<summary>Click to expand scraper pipeline deep-dive</summary>
+
 ### 1. Link Hunting (`hunter.py`)
-The pipeline begins at [`hunter.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/hunter.py).
-*   **Source Discovery:** Reads [`source_registry.json`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/data/source_registry.json) to retrieve targeted URLs.
+The pipeline begins at `hunter.py`.
+*   **Source Discovery:** Reads `source_registry.json` to retrieve targeted URLs.
 *   **PDF Crawling:** Requests each page, parses anchors (`<a>`) using BeautifulSoup, identifies URL endings in `.pdf`, and normalizes them into fully-qualified links.
 *   **Handover:** Posts the batch of discovered PDFs to the backend ingestion endpoint `http://127.0.0.1:8000/api/v1/ingest/batch` to keep the engine synchronized.
 
 ### 2. Multi-Format Extraction (`scraper.py`)
-The scraper class [`UniversalScraper`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/scraper.py) handles extraction from multiple file types:
-*   **Web URLs / HTML:** Uses `requests` with a browser User-Agent header, then strips script tags, headers, footers, styles, and SVG markup using `BeautifulSoup` (with regex backfalls if `bs4` is missing).
+The scraper class `UniversalScraper` handles extraction from multiple file types:
+*   **Web URLs / HTML:** Uses `requests` with a browser User-Agent header, then strips script tags, headers, footers, styles, and SVG markup using `BeautifulSoup` (with regex fallback if `bs4` is missing).
 *   **PDF Documents:** Reads document pages and extracts layout text using PyMuPDF (`fitz`).
 *   **Word Documents (`.docx`):** Parses document paragraphs and extracts tables, formatting cells with standard piping (`|`).
 *   **Excel Spreadsheets (`.xlsx`, `.xls`):** Iterates over all sheets using `pandas` and `openpyxl`, dropping empty rows/columns, and serializing contents to string tables.
@@ -88,10 +94,10 @@ The scraper class [`UniversalScraper`](file:///c:/Users/Tahmeed%20Alam/.gemini/a
 ### 3. Relevance Filtering (`scraper.py`)
 To prevent irrelevant files from flooding the database, extracted text is analyzed against a keyword lexicon:
 *   **Lexicon Scope:** Includes over 50 keywords divided into Meteorologic Forecasting, Indian hazards (e.g., cloudburst, storm surge, cold wave), Agromet terms (GKMS, crop, kharif), Coastal parameters, and Indian regional names (mausam, chakravat, toofan).
-*   **Auto-Trust Rule:** Skip keywords checks and auto-trust documents hailing from official domains: `imd.gov.in`, `ndma.gov.in`, or `incois.gov.in`.
+*   **Auto-Trust Rule:** Skips keyword checks and auto-trusts documents from official domains: `imd.gov.in`, `ndma.gov.in`, or `incois.gov.in`.
 
 ### 4. Alert Adaptation & Normalization (`adapter.py`)
-After a source passes relevance filtering, the [`WeatherAlertAdapter`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/adapter.py) refines the text:
+After a source passes relevance filtering, the `WeatherAlertAdapter` refines the text:
 *   **Location Extraction:** Compiles a regex combining a comprehensive roster of Indian States, UTs, and major cities/districts (sorted descending by string length to match long names like "Jammu and Kashmir" before "Jammu"). Matches are title-cased.
 *   **Severity Mapping:**
     *   **Extreme:** If keywords like *red alert, extremely severe, catastrophic, cloudburst, landslide disaster* are matched.
@@ -102,12 +108,17 @@ After a source passes relevance filtering, the [`WeatherAlertAdapter`](file:///c
 ### 5. High-Throughput Batch Ingestion (`ingest.py`)
 Exposes `/api/v1/ingest/batch` running extraction tasks concurrently across a `ThreadPoolExecutor` (configurable `max_workers` up to 50). It outputs execution statistics (succeeded, failed counts) and appends valid alerts thread-safely via lock to the live system memory.
 
+</details>
+
 ---
 
 ## 🧠 The RAG Pipeline (`rag`)
 
+<details>
+<summary>Click to expand RAG pipeline deep-dive</summary>
+
 ### 1. Vector Database Ingestion
-*   Triggered manually via `/rag/ingest` or automatically.
+*   Triggered manually via `POST /rag/ingest`.
 *   Uses `PyPDFLoader` to read documents from `backend/data/`.
 *   Uses LangChain's `RecursiveCharacterTextSplitter` with:
     *   `chunk_size`: 1000 characters
@@ -115,10 +126,10 @@ Exposes `/api/v1/ingest/batch` running extraction tasks concurrently across a `T
 *   Embeds chunks using Google GenAI embeddings (`models/gemini-embedding-001`).
 *   Stores and indexes them inside a local Chroma database directory at `backend/vector_db/`.
 
-### 2. Guardrails & Routing (`brain.py`)
+### 2. Guardrails & Routing
 To filter out off-topic queries, the brain applies verification rules:
 *   **Domain Matching:** Checks if a location is resolved, or if the user query contains a key weather keyword (e.g., rain, cyclone, temperature, umbrella, travel, NDMA, etc.).
-*   **Fallback:** If the query is off-topic, it returns a standard greeting: *"I am WeatherGPT and can help with weather and disaster-safety questions."* bypasses Chroma/Gemini to conserve LLM tokens.
+*   **Fallback:** If the query is off-topic, it returns a standard greeting: *"I am WeatherGPT and can help with weather and disaster-safety questions."* — bypasses Chroma/Gemini to conserve LLM tokens.
 
 ### 3. Context Construction & Semantic Search
 *   Retrieves the top `k=3` relevant chunks using `similarity_search_with_relevance_scores` from ChromaDB.
@@ -127,15 +138,20 @@ To filter out off-topic queries, the brain applies verification rules:
 *   Constructs a highly detailed prompt instructing the model to act in **MoES Authority Mode**.
 
 ### 4. Authority Mode & LLM Generation
-The prompt enforces the following guidelines to `gemini-1.5-flash`:
+The prompt enforces the following guidelines to `gemini-2.5-pro`:
 1.  **Strict Ranking:** Start with red alerts/special bulletins, follow with regional RMC or hydrology updates, and then agromet/marine advisories.
 2.  **Agency Citations:** Explicitly mention where the source was fetched from (e.g., *"According to RMC Kolkata..."*, *"Based on INCOIS marine data..."*).
 3.  **Balanced Safety Warnings:** If a user asks "Is it safe to go out?", even if there's no active red alert, cross-reference high humidity or thunderstorms in the context to offer warning guidelines.
 4.  **No Hallucinations:** Differentiate live weather numbers from static guidance text and restrict inventiveness.
 
+</details>
+
 ---
 
 ## 🚀 API Endpoints
+
+<details>
+<summary>Click to expand API reference</summary>
 
 ### 1. Check System Health
 ```bash
@@ -178,6 +194,8 @@ Content-Type: application/json
 }
 ```
 
+</details>
+
 ---
 
 ## 💻 Local Setup & Execution
@@ -191,7 +209,7 @@ Content-Type: application/json
 2.  **Install Dependencies:**
     ```bash
     python -m venv .venv
-    source .venv/bin/activate        # On Windows: .venv\Scripts\activate
+    source .venv/bin/activate
     pip install -r backend/requirements.txt
     ```
 
