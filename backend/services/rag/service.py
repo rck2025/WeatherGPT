@@ -44,7 +44,7 @@ class WeatherGPTBrain:
             return
 
         try:
-            self.embeddings = get_embeddings(self.gemini_api_key)
+            self.embeddings = get_embeddings(self.gemini_api_key, model=embedding_model)
         except Exception as e:
             logger.error("Failed to load embeddings: %s", e)
 

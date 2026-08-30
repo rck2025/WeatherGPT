@@ -190,17 +190,28 @@ Content-Type: application/json
 
 2.  **Install Dependencies:**
     ```bash
+    python -m venv .venv
+    source .venv/bin/activate        # On Windows: .venv\Scripts\activate
     pip install -r backend/requirements.txt
     ```
 
-3.  **Execute Link Hunter:**
-    ```bash
-    python backend/services/ingestion/hunter.py
-    ```
-
-4.  **Run Dev Server:**
+3.  **Run the Dev Server** (must be running before the next steps):
     ```bash
     uvicorn backend.main:app --reload
     ```
-    *   Backend API documentation will be available at `http://127.0.0.1:8000/docs`.
-    *   Interactive UI will be served at `http://127.0.0.1:8000/`.
+    *   Backend API docs: `http://127.0.0.1:8000/docs`
+    *   Interactive UI: `http://127.0.0.1:8000/`
+
+4.  **Ingest Local PDF Bulletins into the RAG Vector DB** (run once, or after adding new PDFs to `backend/data/`):
+    ```bash
+    curl -X POST http://127.0.0.1:8000/rag/ingest
+    ```
+    > This reads all `.pdf` files from `backend/data/`, chunks them, embeds them via Gemini, and stores them in `backend/vector_db/`.
+
+5.  **Run the Link Hunter** (optional — populates live alerts in memory from govt sources):
+    > ⚠️ The server from Step 3 **must be running** before you execute this.
+    ```bash
+    .venv/bin/python -m backend.services.ingestion.hunter
+    ```
+    This scans all URLs in `backend/data/source_registry.json`, discovers PDF links on IMD/NDMA/INCOIS pages, and POSTs them to `/api/v1/ingest/batch` to populate the in-memory alerts list.
+    > Note: Alerts are held **in memory only** and will be cleared on server restart.
