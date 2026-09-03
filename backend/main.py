@@ -1,5 +1,4 @@
 import logging
-import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -17,10 +16,10 @@ from backend.services.api.v1.ingest import router as ingest_router
 # ------------------------------------------------------------------
 
 def detect_script_language(text: str) -> str | None:
-    """Detect regional Indian language script from unicode character ranges.
+    """Detect regional Indian language script from Unicode character ranges.
 
     Returns an ISO 639-1 language code (e.g. "hi", "bn") if a regional
-    unicode script is found in *text*, otherwise returns None.
+    Unicode script is found in *text*, otherwise returns None.
     Only checks native script codepoints — Romanized/Hinglish text returns None.
     """
     if not text:
@@ -38,7 +37,7 @@ def detect_script_language(text: str) -> str | None:
     return None
 
 # ------------------------------------------------------------------
-# PATH CONFIGURATION (MacOS / Platform Independent)
+# PATH CONFIGURATION (macOS / Platform Independent)
 # ------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent  # 'backend' folder
 PROJECT_ROOT = BASE_DIR.parent              # project root
@@ -124,7 +123,7 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
         # ── Step 4: RAG / AI Brain (always in English) ──
         filtered_alerts = get_active_alerts(location.city)
         # Use model_copy so the original frozen request object is never mutated
-        english_request = request.model_copy(update={"query": english_query})
+        english_request = request.model_copy(update={"query": english_query, "language": "en"})
         chat_response = rag_service.answer(
             request=english_request,
             location=location,
