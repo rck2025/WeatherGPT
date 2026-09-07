@@ -216,7 +216,10 @@ GET http://127.0.0.1:8000/weather/history?lat=22.5726&lon=88.3639&interval=24h
 ```
 
 ### 3. Ingest Bulletins (Vector DB)
-Manually process local PDF files inside `backend/data/` and store them in the Chroma vector store.
+On startup, WeatherGPT automatically builds the Chroma index from PDFs in
+`backend/data/` if no successful local index exists. The marker prevents repeat
+embedding work on ordinary process restarts. This endpoint remains available to
+manually refresh the index after changing those local PDFs.
 ```bash
 POST http://127.0.0.1:8000/rag/ingest
 ```
@@ -266,7 +269,7 @@ Content-Type: application/json
     pip install -r backend/requirements.txt
     ```
 
-3.  **Execute Link Hunter:**
+3.  **Execute Link Hunter manually (optional):**
     ```bash
     python backend/services/ingestion/hunter.py
     ```
@@ -277,3 +280,43 @@ Content-Type: application/json
     ```
     *   Backend API documentation will be available at `http://127.0.0.1:8000/docs`.
     *   Interactive UI will be served at `http://127.0.0.1:8000/`.
+
+## Render deployment notes
+
+The server starts both background jobs by default:
+
+- `AUTO_RAG_INGEST=true` builds the RAG index when it is missing, before the
+  app accepts requests.
+- `AUTO_HUNTER=true` starts the bulletin link hunter in the background and
+  adds discovered alerts to the live service.
+- `WEATHER_CACHE_TTL_SECONDS=600` caches each location's complete Open-Meteo
+  response for ten minutes. This is especially important on Render, where
+  public Open-Meteo traffic can share a rate-limited outbound IP.
+
+Set either `AUTO_RAG_INGEST=false` or `AUTO_HUNTER=false` in Render Environment
+when troubleshooting. If you run more than one web worker/instance, set
+`AUTO_HUNTER=false` for the web service and run the hunter only once as a Render
+Cron Job; otherwise every worker will independently scrape the same sources.
+
+### Run the hunter from a Render Shell
+
+Open **Shell** for the running web service and execute this from the repository
+root:
+
+```bash
+python -m backend.services.ingestion.hunter
+```
+
+The command automatically uses Render's `PORT`. If it is executed from a
+separate cron service instead of the web service shell, configure
+`INGEST_API_URL=https://your-service.onrender.com/api/v1/ingest/batch` and set
+the same `INGEST_API_TOKEN` value on both services.
+
+### Do you need Docker?
+
+Not for this app's first Render deployment. Render can install
+`backend/requirements.txt` and run `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+directly. Docker becomes useful only when you need to pin OS-level packages,
+make local and production environments identical, or run multiple services from
+one reproducible image. Start without it; the automatic jobs and cache above do
+not depend on Docker.

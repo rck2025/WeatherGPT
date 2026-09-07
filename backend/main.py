@@ -1,10 +1,12 @@
 import base64
+import asyncio
 import json
 import logging
 import os
 import re
 import sys
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -25,6 +27,66 @@ from backend.services.language.resolver import (
     get_language_and_script_names,
     validate_script_purity,
 )
+
+
+def _env_enabled(name: str, default: bool = True) -> bool:
+    """Read opt-out startup switches from Render/local environment variables."""
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+async def _ingest_rag_at_startup() -> None:
+    """Build the local bulletin index once, before requests are accepted."""
+    if rag_service.bulletins_are_ingested():
+        logging.info("RAG bulletin index already exists; startup ingestion skipped.")
+        return
+    try:
+        count = await asyncio.to_thread(rag_service.ingest_documents)
+        logging.info("Startup RAG ingestion completed: %d PDF bulletin(s).", count)
+    except Exception:
+        # A missing key or one bad PDF must not take down the web application.
+        # The health endpoint remains usable and the error is visible in Render logs.
+        logging.exception("Startup RAG ingestion failed.")
+
+
+async def _run_hunter_at_startup() -> None:
+    """Discover current bulletin URLs and add their alerts to live memory."""
+    try:
+        from backend.services.api.v1.ingest import append_alerts, process_sources
+        from backend.services.ingestion.hunter import GlobalClimateHunter
+
+        hunter = GlobalClimateHunter()
+        sources = await asyncio.to_thread(hunter.hunt_for_pdfs)
+        ingested = await process_sources(sources, max_workers=3)
+        append_alerts(ingested)
+        logging.info(
+            "Startup hunter completed: %d/%d bulletin source(s) ingested.",
+            len(ingested), len(sources),
+        )
+    except Exception:
+        # Official sources can be temporarily unavailable. Do not block startup;
+        # the hunter can be re-run from a Render shell or scheduled separately.
+        logging.exception("Startup bulletin hunter failed.")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    # RAG must be ready before the first response. The link hunter is network
+    # bound and can complete in the background without delaying readiness.
+    if _env_enabled("AUTO_RAG_INGEST", default=True):
+        await _ingest_rag_at_startup()
+
+    hunter_task: asyncio.Task | None = None
+    if _env_enabled("AUTO_HUNTER", default=True):
+        hunter_task = asyncio.create_task(_run_hunter_at_startup())
+
+    yield
+
+    if hunter_task and not hunter_task.done():
+        hunter_task.cancel()
+        try:
+            await hunter_task
+        except asyncio.CancelledError:
+            pass
 
 # ------------------------------------------------------------------
 # PATH & FFMPEG CONFIGURATION
@@ -72,6 +134,7 @@ def detect_script_language(text: str) -> str | None:
 app = FastAPI(
     title="WeatherGPT API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 @app.middleware("http")

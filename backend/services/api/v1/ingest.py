@@ -69,6 +69,37 @@ def _process_single_source(source: str) -> Optional[WeatherAlert]:
     return None
 
 
+async def process_sources(
+    sources: List[str], max_workers: int = 10
+) -> List[WeatherAlert]:
+    """Scrape and adapt sources without requiring an HTTP round trip.
+
+    This is shared by the public endpoint and the app-start hunter, so the
+    startup task does not have to call its own server before it is listening.
+    """
+    if not sources:
+        return []
+
+    loop = asyncio.get_running_loop()
+    workers = min(max_workers or 10, len(sources))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            loop.run_in_executor(executor, _process_single_source, source)
+            for source in sources
+        ]
+        results = await asyncio.gather(*futures, return_exceptions=False)
+    return [result for result in results if result is not None]
+
+
+def append_alerts(ingested_alerts: List[WeatherAlert]) -> None:
+    """Append a batch to the live alert list under one shared lock."""
+    if not ingested_alerts:
+        return
+    import backend.main as main_module
+    with _alerts_lock:
+        main_module.alerts.extend(ingested_alerts)
+
+
 @router.post("/batch", response_model=IngestBatchResponse)
 async def ingest_batch(
     request: IngestBatchRequest,
@@ -90,28 +121,13 @@ async def ingest_batch(
     ):
         raise HTTPException(status_code=401, detail="Unauthorized ingestion request.")
 
-    import backend.main as main_module
-
     if not request.sources:
         raise HTTPException(status_code=400, detail="Sources list cannot be empty.")
 
-    loop = asyncio.get_running_loop()
-    max_workers = min(request.max_workers or 10, len(request.sources))
-
-    # Run parallel extraction across thread pool
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            loop.run_in_executor(executor, _process_single_source, source)
-            for source in request.sources
-        ]
-        results = await asyncio.gather(*futures, return_exceptions=False)
-
-    ingested_alerts: List[WeatherAlert] = [r for r in results if r is not None]
+    ingested_alerts = await process_sources(request.sources, request.max_workers or 10)
     failed_count = len(request.sources) - len(ingested_alerts)
 
-    # Thread-safe batch append to global alerts
-    with _alerts_lock:
-        main_module.alerts.extend(ingested_alerts)
+    append_alerts(ingested_alerts)
 
     logger.info(
         f"Batch ingestion complete: {len(ingested_alerts)}/{len(request.sources)} sources ingested."

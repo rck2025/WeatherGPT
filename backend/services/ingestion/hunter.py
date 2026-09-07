@@ -23,10 +23,11 @@ class GlobalClimateHunter:
         with open(registry_path, 'r') as f:
             self.registry = json.load(f)
         self.headers = {"User-Agent": "WeatherGPT-SIH-Bot/1.0"}
-        # Defaults to the local API for development. Set INGEST_API_URL to the
-        # deployed /api/v1/ingest/batch URL when this runs as a cloud cron job.
+        # Defaults to the local API for development and a Render Shell. Set
+        # INGEST_API_URL to the public deployed endpoint for an external cron.
+        local_port = os.getenv("PORT", "8000")
         self.ingest_url = os.getenv(
-            "INGEST_API_URL", "http://127.0.0.1:8000/api/v1/ingest/batch"
+            "INGEST_API_URL", f"http://127.0.0.1:{local_port}/api/v1/ingest/batch"
         ).strip()
         self.ingest_token = os.getenv("INGEST_API_TOKEN", "").strip()
 

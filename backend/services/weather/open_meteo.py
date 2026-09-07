@@ -1,4 +1,7 @@
+import asyncio
 import logging
+import os
+import time
 from typing import Optional
 
 import httpx
@@ -24,12 +27,54 @@ class OpenMeteoService:
         "User-Agent": "WeatherGPT_SIH_Project_Contact@team.com"
     }
 
+    def __init__(self, cache_ttl_seconds: int | None = None) -> None:
+        # Open-Meteo's public endpoint is shared by every Render instance using
+        # the same outbound IP.  Cache the *complete* forecast, rather than
+        # only current conditions, so a chat conversation does not repeatedly
+        # make the same relatively expensive request.
+        self.cache_ttl_seconds = cache_ttl_seconds or int(
+            os.getenv("WEATHER_CACHE_TTL_SECONDS", "600")
+        )
+        self._cache: dict[tuple[float, float], tuple[float, WeatherResponse]] = {}
+        self._locks: dict[tuple[float, float], asyncio.Lock] = {}
+
+    @staticmethod
+    def _cache_key(location: Location) -> tuple[float, float]:
+        # Roughly 11 m precision: location resolver results remain stable and
+        # nearby repeat requests coalesce without mixing distinct cities.
+        return (round(location.latitude, 4), round(location.longitude, 4))
+
+    def _fresh_cache_entry(self, key: tuple[float, float]) -> WeatherResponse | None:
+        entry = self._cache.get(key)
+        if entry and time.monotonic() - entry[0] < self.cache_ttl_seconds:
+            return entry[1]
+        return None
+
     async def get_weather(
         self,
         location: Location,
     ) -> Optional[WeatherResponse]:
         """Fetch current weather and 7-day forecast."""
 
+        key = self._cache_key(location)
+        cached = self._fresh_cache_entry(key)
+        if cached is not None:
+            return cached
+
+        # A per-location lock prevents a burst of identical chats from making
+        # identical upstream calls before the first response reaches the cache.
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._fresh_cache_entry(key)
+            if cached is not None:
+                return cached
+            return await self._fetch_weather(location, key)
+
+    async def _fetch_weather(
+        self,
+        location: Location,
+        key: tuple[float, float],
+    ) -> Optional[WeatherResponse]:
         params = {
             "latitude": location.latitude,
             "longitude": location.longitude,
@@ -122,13 +167,21 @@ class OpenMeteoService:
                     )
                 )
 
-            return WeatherResponse(
+            weather = WeatherResponse(
                 current=current_weather,
                 hourly=hourly_forecast,
                 daily=daily_forecast,
             )
+            self._cache[key] = (time.monotonic(), weather)
+            return weather
 
         except (httpx.HTTPError, ValueError, KeyError) as exc:
+            # If Open-Meteo has rate-limited the shared deployment IP, serving
+            # the last good value is more useful than making every chat fail.
+            stale = self._cache.get(key)
+            if stale is not None:
+                logger.warning("Open-Meteo request failed; serving stale cached weather: %s", exc)
+                return stale[1]
             logger.error("Open-Meteo request failed: %s", exc)
             return None
 

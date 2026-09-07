@@ -13,6 +13,7 @@ from backend.schemas import (
     WeatherResponse,
 )
 from backend.services.rag.service import WeatherGPTBrain
+from backend.services.rag.vector_store import is_ingested
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,10 @@ class RAGService:
     def ingest_documents(self) -> int:
         """Ingest the PDFs in backend/data and return the processed file count."""
         return self.brain.ingest_bulletins()
+
+    def bulletins_are_ingested(self) -> bool:
+        """Check the durable marker left after a successful ingestion run."""
+        return is_ingested(self.brain.db_path)
 
 
 rag_service = RAGService()
