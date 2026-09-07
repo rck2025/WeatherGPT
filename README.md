@@ -4,9 +4,9 @@ WeatherGPT is a Retrieval-Augmented Generation (RAG) assistant designed for the 
 
 ---
 
-## 🗺️ System Architecture
+## 🗺️ System Architecture (USGS + IMD + INCOIS + Bhashini)
 
-The following diagram illustrates how the scraping pipeline and RAG query process operate and interact:
+The following diagram illustrates how the scraping, multi-hazard ingestion, Bhashini translation bridge, historical time-series engine, and emergency notifier operate:
 
 ```mermaid
 graph TD
@@ -14,34 +14,54 @@ graph TD
     classDef ingest fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#01579b;
     classDef query fill:#efebe9,stroke:#5d4037,stroke-width:2px,color:#3e2723;
     classDef storage fill:#efe8e0,stroke:#d84315,stroke-width:2px,color:#bf360c;
+    classDef national fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20;
+    classDef alert fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#b71c1c;
     
-    subgraph Ingestion Pipeline [Crawler & Ingestion Pipeline]
+    subgraph Ingestion Pipeline [Multi-Hazard & Crawler Pipeline]
         registry[source_registry.json] --> hunter[hunter.py: GlobalClimateHunter]
-        hunter -- Crawls PDFs --> batch_ingest[ingest.py: /api/v1/ingest/batch]
-        batch_ingest -- ThreadPoolExecutor --> scraper[scraper.py: UniversalScraper]
-        scraper -- Auto-Trust / Keyword Filter --> adapter[adapter.py: WeatherAlertAdapter]
-        adapter -- Validation & Extraction --> alert_store[(Memory: Global Alerts)]
+        hunter -- IMD Bulletins --> batch_ingest[ingest.py: /api/v1/ingest/batch]
+        batch_ingest --> scraper[scraper.py: UniversalScraper]
+        scraper --> adapter[adapter.py: WeatherAlertAdapter]
+        
+        usgs_feed[USGS Seismic Network] --> hazards[hazards.py: Multi-Hazard Stream]
+        incois_feed[INCOIS Ocean Telemetry] --> hazards
+        
+        hazards --> alert_store[(Unified Live Alert Store)]
+        adapter --> alert_store
         
         pdf_dir[backend/data/*.pdf] --> doc_ingest[main.py: /rag/ingest]
-        doc_ingest -- LangChain Splitters --> embed[Gemini Embeddings]
+        doc_ingest -- RecursiveTextSplitter --> embed[Gemini Embeddings]
         embed --> chroma[(vector_db: ChromaDB)]
     end
     
-    subgraph Query Pipeline [RAG & Response Pipeline]
-        user[User Chat Query] --> chat_endpoint[main.py: /chat]
-        chat_endpoint --> loc[location_resolver]
-        chat_endpoint --> weather[open_meteo_service]
+    subgraph Query Pipeline [RAG, Historical Time-Series & Bhashini Gateway]
+        user[User Terminal Query / Voice] --> chat_endpoint[main.py: /chat]
+        chat_endpoint --> bhashini_in[translator.py: Bhashini / Indic Gateway]
+        bhashini_in -- Normalized Query --> loc[location_resolver]
         
-        loc & weather & alert_store --> rag_service[adapter.py: RAGService]
+        loc --> weather[open_meteo_service]
+        loc --> history[history.py: 1h-7d Historical Engine]
+        
+        loc & weather & history & alert_store --> rag_service[adapter.py: RAGService]
         rag_service --> chroma_search{Chroma Similarity Search}
-        chroma_search -- k=3 Documents --> brain[service.py: WeatherGPTBrain]
-        brain -- Authority Mode Prompt --> llm[Gemini LLM: gemini-flash-latest]
-        llm --> response[Structured ChatResponse]
+        chroma_search -- Top Bulletins --> brain[service.py: WeatherGPTBrain]
+        brain -- MoES Authority Mode --> llm[Gemini LLM: gemini-flash-latest]
+        
+        llm --> bhashini_out[translator.py: Bhashini 15-Language NMT]
+        bhashini_out --> tts[service.py: Synchronized Edge-TTS]
+        bhashini_out --> response[Structured ChatResponse with history_data]
     end
 
-    class registry,hunter,batch_ingest,scraper,adapter,pdf_dir,doc_ingest,embed ingest;
-    class user,chat_endpoint,loc,weather,rag_service,chroma_search,brain,llm,response query;
+    subgraph Emergency Disaster Bridge [Low-Bandwidth Out-of-Terminal Notification]
+        response -- Critical / Red Alert Trigger --> notifier[notifier.py: send_emergency_whatsapp]
+        notifier --> whatsapp[Twilio WhatsApp / SMS Broadcast]
+    end
+
+    class registry,hunter,batch_ingest,scraper,adapter,pdf_dir,doc_ingest,embed,usgs_feed,incois_feed,hazards ingest;
+    class user,chat_endpoint,loc,weather,history,rag_service,chroma_search,brain,llm,response query;
     class chroma,alert_store storage;
+    class bhashini_in,bhashini_out,tts national;
+    class notifier,whatsapp alert;
 ```
 
 ---
@@ -135,6 +155,54 @@ The prompt enforces the following guidelines to `gemini-1.5-flash`:
 
 ---
 
+## 🇮🇳 15-Language Indic National Matrix
+
+WeatherGPT features native bilingual and regional synthesis supporting 15 languages, integrated via the Government of India **Bhashini ULCA NMT Pipeline** with seamless **Deep-Translator fallback** and synchronized neural voice synthesis via Microsoft Edge-TTS:
+
+| # | Code | Language | Native Script | Primary Engine | Edge-TTS Voice Persona |
+|:---|:---|:---|:---|:---|:---|
+| 1 | `en` | Indian English | English | Direct / MoES Authority | `en-IN-NeerjaExpressiveNeural` (Female) |
+| 2 | `hi` | Hindi | हिन्दी | Bhashini ULCA / NMT | `hi-IN-SwaraNeural` (Female) |
+| 3 | `bn` | Bengali | বাংলা | Bhashini ULCA / NMT | `bn-IN-TanishaaNeural` (Female) |
+| 4 | `ta` | Tamil | தமிழ் | Bhashini ULCA / NMT | `ta-IN-PallaviNeural` (Female) |
+| 5 | `te` | Telugu | తెలుగు | Bhashini ULCA / NMT | `te-IN-ShrutiNeural` (Female) |
+| 6 | `mr` | Marathi | मराठी | Bhashini ULCA / NMT | `mr-IN-AarohiNeural` (Female) |
+| 7 | `gu` | Gujarati | ગુજરાતી | Bhashini ULCA / NMT | `gu-IN-DhwaniNeural` (Female) |
+| 8 | `kn` | Kannada | ಕನ್ನಡ | Bhashini ULCA / NMT | `kn-IN-SapnaNeural` (Female) |
+| 9 | `ml` | Malayalam | മലയാളം | Bhashini ULCA / NMT | `ml-IN-SobhanaNeural` (Female) |
+| 10 | `ur` | Urdu | اردو | Bhashini ULCA / NMT | `ur-IN-GulNeural` (Female) |
+| 11 | `pa` | Punjabi | ਪੰਜਾਬੀ | Bhashini ULCA / NMT | `pa-IN-OjasNeural` (Male) |
+| 12 | `or` | Odia | ଓଡ଼ିଆ | Bhashini ULCA / NMT | `hi-IN-SwaraNeural` (Adaptive) |
+| 13 | `as` | Assamese | অসমীয়া | Bhashini ULCA / NMT | `bn-IN-TanishaaNeural` (Adaptive) |
+| 14 | `sa` | Sanskrit | संस्कृतम् | Bhashini ULCA / NMT | `hi-IN-SwaraNeural` (Adaptive) |
+| 15 | `ne` | Nepali | नेपाली | Bhashini ULCA / NMT | `ne-NP-HemkalaNeural` (Female) |
+
+---
+
+## ⏱️ Historical Time-Series Analysis (1H to 7D)
+
+The Bloomberg-style `LOCAL_ENV` telemetry console incorporates real-time temporal analysis across selectable intervals:
+- `[1H]` : Most recent hour sensor telemetry
+- `[6H]` : 6-hour nowcast trend & average
+- `[24H]`: Full 24-hour diurnal cycle comparison
+- `[48H]`: 48-hour barometric & precipitation evolution
+- `[7D]` : 7-day synoptic trend
+
+When an interval is selected, the **Big Digits Temperature** widget and **Humidity Ratio bar** recalculate the period average, and the AI agent automatically formulates comparative synoptic reasoning:
+> *"Compare the current low-pressure system with the data from the last [Selected Interval]."*
+
+---
+
+## 🚨 Out-of-Terminal Emergency Disaster Bridge
+
+In crisis scenarios (Red Alert or High/Extreme severity hazard detection), WeatherGPT initiates out-of-terminal dissemination via the Twilio WhatsApp & SMS bridge (`backend/services/alerts/notifier.py`):
+```text
+🚨 WEATHER-GPT RED ALERT: [Hazard Type] in [City]. Follow NDRF SOPs. Check terminal for details.
+```
+*(Formatted under 160 characters for low-bandwidth cellular transmission).*
+
+---
+
 ## 🚀 API Endpoints
 
 ### 1. Check System Health
@@ -142,7 +210,12 @@ The prompt enforces the following guidelines to `gemini-1.5-flash`:
 GET http://127.0.0.1:8000/health
 ```
 
-### 2. Ingest Bulletins (Vector DB)
+### 2. Historical Meteorological Time-Series
+```bash
+GET http://127.0.0.1:8000/weather/history?lat=22.5726&lon=88.3639&interval=24h
+```
+
+### 3. Ingest Bulletins (Vector DB)
 Manually process local PDF files inside `backend/data/` and store them in the Chroma vector store.
 ```bash
 POST http://127.0.0.1:8000/rag/ingest

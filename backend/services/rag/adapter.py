@@ -8,6 +8,7 @@ from backend.schemas import (
     ChatResponse,
     Location,
     RAGDocument,
+    SynopticOverlay,
     WeatherAlert,
     WeatherResponse,
 )
@@ -50,6 +51,10 @@ class RAGService:
     def _as_sources(value: Any) -> list[RAGDocument]:
         return [RAGDocument.model_validate(item) for item in (value or [])]
 
+    @staticmethod
+    def _as_overlays(value: Any) -> list[SynopticOverlay]:
+        return [SynopticOverlay.model_validate(item) for item in (value or [])]
+
     def answer(
         self,
         request: ChatRequest,
@@ -67,6 +72,7 @@ class RAGService:
                 location=location,
                 weather=weather,
                 alerts=alerts,
+                synoptic_overlays=[],
             )
 
         try:
@@ -82,6 +88,7 @@ class RAGService:
                 weather=weather,
                 alerts=self._as_alerts(result.get("alerts", alerts)),
                 sources=self._as_sources(result.get("sources", [])),
+                synoptic_overlays=self._as_overlays(result.get("synoptic_overlays", [])),
             )
         except Exception:
             logger.exception("RAG service failed.")
@@ -91,6 +98,7 @@ class RAGService:
                 weather=weather,
                 alerts=alerts,
                 sources=[],
+                synoptic_overlays=[],
             )
 
     def ingest_documents(self) -> int:

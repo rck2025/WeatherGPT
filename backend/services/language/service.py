@@ -60,18 +60,31 @@ class LanguageService:
     /voice/* FastAPI router.
     """
 
-    # Supported languages metadata (used by GET /voice/languages)
+    # Supported languages metadata (used by GET /voice/languages) - 22 Scheduled Indian Languages + English
     SUPPORTED_LANGUAGES: list[dict] = [
-        {"code": "en", "name": "Indian English",  "voice": "en-IN-NeerjaExpressiveNeural", "gender": "Female"},
-        {"code": "hi", "name": "Hindi",            "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
-        {"code": "bn", "name": "Bengali",          "voice": "bn-IN-TanishaaNeural",         "gender": "Female"},
-        {"code": "ta", "name": "Tamil",            "voice": "ta-IN-PallaviNeural",          "gender": "Female"},
-        {"code": "te", "name": "Telugu",           "voice": "te-IN-ShrutiNeural",           "gender": "Female"},
-        {"code": "mr", "name": "Marathi",          "voice": "mr-IN-AarohiNeural",           "gender": "Female"},
-        {"code": "gu", "name": "Gujarati",         "voice": "gu-IN-DhwaniNeural",           "gender": "Female"},
-        {"code": "kn", "name": "Kannada",          "voice": "kn-IN-SapnaNeural",            "gender": "Female"},
-        {"code": "ml", "name": "Malayalam",        "voice": "ml-IN-SobhanaNeural",          "gender": "Female"},
-        {"code": "ur", "name": "Urdu",             "voice": "ur-IN-GulNeural",              "gender": "Female"},
+        {"code": "en",  "name": "Indian English", "voice": "en-IN-NeerjaExpressiveNeural", "gender": "Female"},
+        {"code": "hi",  "name": "Hindi",          "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "bn",  "name": "Bengali",        "voice": "bn-IN-TanishaaNeural",         "gender": "Female"},
+        {"code": "mr",  "name": "Marathi",        "voice": "mr-IN-AarohiNeural",           "gender": "Female"},
+        {"code": "te",  "name": "Telugu",         "voice": "te-IN-ShrutiNeural",           "gender": "Female"},
+        {"code": "ta",  "name": "Tamil",          "voice": "ta-IN-PallaviNeural",          "gender": "Female"},
+        {"code": "gu",  "name": "Gujarati",       "voice": "gu-IN-DhwaniNeural",           "gender": "Female"},
+        {"code": "ur",  "name": "Urdu",           "voice": "ur-IN-GulNeural",              "gender": "Female"},
+        {"code": "kn",  "name": "Kannada",        "voice": "kn-IN-SapnaNeural",            "gender": "Female"},
+        {"code": "or",  "name": "Odia",           "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "ml",  "name": "Malayalam",      "voice": "ml-IN-SobhanaNeural",          "gender": "Female"},
+        {"code": "pa",  "name": "Punjabi",        "voice": "pa-IN-OjasNeural",             "gender": "Male"},
+        {"code": "as",  "name": "Assamese",       "voice": "bn-IN-TanishaaNeural",         "gender": "Female"},
+        {"code": "mai", "name": "Maithili",        "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "sat", "name": "Santali",         "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "ks",  "name": "Kashmiri",        "voice": "ur-IN-GulNeural",              "gender": "Female"},
+        {"code": "ne",  "name": "Nepali",          "voice": "ne-NP-HemkalaNeural",          "gender": "Female"},
+        {"code": "kok", "name": "Konkani",         "voice": "mr-IN-AarohiNeural",           "gender": "Female"},
+        {"code": "sd",  "name": "Sindhi",          "voice": "ur-IN-GulNeural",              "gender": "Female"},
+        {"code": "doi", "name": "Dogri",           "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "mni", "name": "Manipuri",        "voice": "bn-IN-TanishaaNeural",         "gender": "Female"},
+        {"code": "brx", "name": "Bodo",            "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
+        {"code": "sa",  "name": "Sanskrit",        "voice": "hi-IN-SwaraNeural",            "gender": "Female"},
     ]
 
     def __init__(self) -> None:
@@ -101,12 +114,13 @@ class LanguageService:
         Translate a regional-language user query into English so that
         location resolution and RAG vector search work reliably.
 
-        Falls back to the original text on any error.
+        Uses Bhashini Tier-1 Gateway with deep_translator fallback.
         """
         if not text or source_lang == "en":
             return text
         try:
-            return self.engine.translate(text, source_lang=source_lang, target_lang="en")
+            from backend.services.language.translator import translate_text
+            return translate_text(text, source_lang=source_lang, target_lang="en")
         except Exception:
             logger.exception("Query translation to English failed; using original text.")
             return text
@@ -120,14 +134,15 @@ class LanguageService:
         Translate the English bot reply into the user's target regional language
         while preserving all Markdown formatting (headers, bolding, bullet points, linebreaks).
 
-        Falls back to the original (English) reply on any error.
+        Uses Bhashini Tier-1 Gateway with deep_translator fallback.
         """
         if not bot_reply or target_lang == "en":
             return bot_reply
         try:
+            from backend.services.language.translator import translate_text
             # Strip internal thinking tags if present but preserve full Markdown structure
             clean_input = re.sub(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", "", bot_reply, flags=re.IGNORECASE).strip()
-            return self.engine.translate(clean_input, source_lang="en", target_lang=target_lang)
+            return translate_text(clean_input, source_lang="en", target_lang=target_lang)
         except Exception:
             logger.exception("bot_reply translation failed; returning original English reply.")
             return bot_reply
@@ -165,12 +180,23 @@ class LanguageService:
     # 4. Transcribe audio blob (used by /voice/transcribe endpoint)
     # ------------------------------------------------------------------
 
-    def transcribe_audio(self, audio_path: str, language_hint: str | None = None) -> dict:
+    def transcribe_audio(
+        self,
+        audio_path: str,
+        target_lang: str | None = None,
+        language_hint: str | None = None,
+        user_language: str | None = None,
+    ) -> dict:
         """
         Run Faster-Whisper STT on *audio_path* and return transcription metadata.
-        Delegates to WeatherHybridEngine.process_query().
+        Delegates to WeatherHybridEngine.process_query() with target_lang SSoT.
         """
-        return self.engine.process_query(audio_path, language_hint=language_hint)
+        return self.engine.process_query(
+            audio_path,
+            target_lang=target_lang,
+            language_hint=language_hint,
+            user_language=user_language,
+        )
 
     # ------------------------------------------------------------------
     # 5. Synthesize JSON (used by /voice/synthesize-json endpoint)

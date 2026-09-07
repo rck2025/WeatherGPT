@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+.leaflet-container img {
+  max-width: none !important;
+}
+.leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  background-color: #0d0e0f;
+  white-space: nowrap;
+  border-bottom: 1px solid #333535;
+}
+.ticker {
+  display: inline-block;
+  padding-left: 100%;
+  animation: ticker 25s linear infinite;
+}
+.ticker-item {
+  display: inline-block;
+  padding: 0 2rem;
+  color: #00FF00;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+@keyframes ticker {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-100%, 0, 0); }
+}
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+.glow-badge {
+  box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+}
+.scanline-overlay::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.3;
+}
+.pulsing-marker {
+  animation: pulse-marker 1.5s ease-in-out infinite;
+}
+@keyframes pulse-marker {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}

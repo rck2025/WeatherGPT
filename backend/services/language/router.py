@@ -18,7 +18,7 @@ import logging
 import os
 import uuid
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
 from backend.services.language._schemas import (
@@ -50,13 +50,16 @@ def get_languages():
 @router.post("/transcribe", response_model=TranscribeResponse, tags=["Voice & Language"])
 async def transcribe_audio(
     file: UploadFile = File(...),
+    user_language: str | None = Form(None),
     language: str | None = Form(None),
+    user_language_query: str | None = Query(None, alias="user_language"),
 ):
     """
     Accept any browser audio format (.webm, .ogg, .wav, .mp3, .m4a),
     standardise it to 16 kHz Mono WAV, transcribe with Faster-Whisper,
     detect language, and return the English query ready for the RAG brain.
     """
+    effective_lang = user_language or user_language_query or language
     tmp_filename = f"upload_{uuid.uuid4().hex}_{file.filename}"
     tmp_path = str(language_service.audio_dir / tmp_filename)
 
@@ -65,17 +68,39 @@ async def transcribe_audio(
         with open(tmp_path, "wb") as fh:
             fh.write(content)
 
-        result = language_service.transcribe_audio(tmp_path, language_hint=language)
+        result = language_service.transcribe_audio(
+            tmp_path,
+            language_hint=effective_lang,
+            user_language=effective_lang,
+        )
+        method = result.get("transcription_method", "Whisper")
+        conf = float(result.get("confidence", 0.0))
+
+        logger.info(
+            "🎯 [SIH MONITOR - TRANSCRIBE] Method: %s | Confidence: %.2f (%.1f%%) | Detected Lang: %s | Text: '%s'",
+            method,
+            conf,
+            conf * 100,
+            result["detected_lang"],
+            result["original_text"],
+        )
 
         return TranscribeResponse(
             success=True,
             original_text=result["original_text"],
             detected_language=result["detected_lang"],
-            language_confidence=float(result["confidence"]),
+            language_confidence=conf,
             english_query=result["english_query"],
+            transcription_method=method,
         )
 
+
+    except HTTPException:
+        raise
     except Exception as exc:
+        err_str = str(exc)
+        if "SYS_VOICE > SIGNAL_NOISE" in err_str or "SYS_VOICE > ERROR: SCRIPT_MISMATCH" in err_str:
+            raise HTTPException(status_code=422, detail=err_str) from exc
         logger.exception("Transcription failed.")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
@@ -95,16 +120,18 @@ async def transcribe_audio(
 async def synthesize_voice_file(request: SynthesizeRequest):
     """
     Clean and translate *text*, then synthesise regional neural audio.
+    Prioritizes detected_lang_code from the transcription step so the output voice matches the input language.
     Returns an MP3 audio stream (audio/mpeg).
     The temporary file is auto-deleted after 120 seconds.
     """
-    filename = f"response_{uuid.uuid4().hex}_{request.target_language}.mp3"
+    effective_lang = request.detected_lang_code or request.target_language or "hi"
+    filename = f"response_{uuid.uuid4().hex}_{effective_lang}.mp3"
     output_path = str(language_service.audio_dir / filename)
 
     try:
         result = await language_service.engine.generate_regional_response(
             raw_response=request.text,
-            target_lang=request.target_language,
+            target_lang=effective_lang,
             output_file=output_path,
             source_is_english=request.source_is_english,
         )
@@ -115,7 +142,7 @@ async def synthesize_voice_file(request: SynthesizeRequest):
         return FileResponse(
             path=output_path,
             media_type="audio/mpeg",
-            filename=f"weather_{request.target_language}.mp3",
+            filename=f"weather_{effective_lang}.mp3",
         )
 
     except HTTPException:
@@ -135,11 +162,13 @@ async def synthesize_voice_json(request: SynthesizeRequest):
     Synthesise regional neural audio and return a Base64 Data URI for
     instant in-browser playback via  new Audio(data.audio_base64).play()
     — no secondary HTTP request needed.
+    Prioritizes detected_lang_code from the transcription step.
     """
+    effective_lang = request.detected_lang_code or request.target_language or "hi"
     try:
         result = await language_service.synthesize_audio_json(
             text=request.text,
-            target_lang=request.target_language,
+            target_lang=effective_lang,
             source_is_english=request.source_is_english,
         )
 
@@ -153,6 +182,7 @@ async def synthesize_voice_json(request: SynthesizeRequest):
             audio_url=result["audio_url"],
         )
 
+
     except Exception as exc:
         logger.exception("Synthesis-JSON endpoint failed.")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {exc}") from exc
@@ -162,9 +192,9 @@ async def synthesize_voice_json(request: SynthesizeRequest):
 # GET /voice/audio/{filename}  (serve temporary files)
 # -----------------------------------------------------------------------
 
-@router.get("/audio/{filename}", tags=["Voice & Language"])
-async def get_audio_file(filename: str):
-    """Serve a previously generated temporary audio file by filename."""
+@router.api_route("/audio/{filename}", methods=["GET", "HEAD"], tags=["Voice & Language"])
+async def get_audio_file(filename: str, request: Request):
+    """Serve a previously generated temporary audio file by filename with Accept-Ranges and seeking support."""
     # Prevent path traversal
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename.")
@@ -173,4 +203,36 @@ async def get_audio_file(filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found or already deleted.")
 
-    return FileResponse(str(file_path), media_type="audio/mpeg")
+    file_size = file_path.stat().st_size
+    range_header = request.headers.get("range")
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Cache-Control": "public, max-age=120",
+    }
+
+    # Handle HTTP 206 Partial Content for instant seeking/scrubbing
+    if range_header and range_header.startswith("bytes="):
+        try:
+            range_val = range_header[len("bytes="):].strip()
+            parts = range_val.split("-")
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+            start = max(0, min(start, file_size - 1))
+            end = max(start, min(end, file_size - 1))
+            content_length = end - start + 1
+
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            headers["Content-Length"] = str(content_length)
+
+            with open(file_path, "rb") as fh:
+                fh.seek(start)
+                data = fh.read(content_length)
+
+            return Response(content=data, status_code=206, headers=headers, media_type="audio/mpeg")
+        except Exception:
+            pass  # Fall back to standard response
+
+    headers["Content-Length"] = str(file_size)
+    return FileResponse(str(file_path), media_type="audio/mpeg", headers=headers)

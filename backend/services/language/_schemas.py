@@ -18,6 +18,7 @@ class TranscribeResponse(BaseModel):
     detected_language: str
     language_confidence: float
     english_query: str
+    transcription_method: str = "Whisper"
 
 
 # -----------------------------------------------------------------------
@@ -27,7 +28,9 @@ class TranscribeResponse(BaseModel):
 class SynthesizeRequest(BaseModel):
     text: str
     target_language: str = "hi"
+    detected_lang_code: str | None = None
     source_is_english: bool = True
+
 
 
 class SynthesizeResponse(BaseModel):

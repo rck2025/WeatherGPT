@@ -10,10 +10,13 @@ langchain-google-genai
 langchain-community
 langchain-text-splitters
 chromadb
+langchain-chroma
 pypdf
 
 # --- Voice & Language Module ---
 faster-whisper
-deep-translator
+openai-whisper
 edge-tts
+imageio-ffmpeg
+deep-translator
 python-multipart

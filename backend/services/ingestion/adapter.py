@@ -160,11 +160,18 @@ class WeatherAlertAdapter:
         description = self.format_description(raw_text, location)
 
         # 5. Build and validate WeatherAlert
+        lat, lon = None, None
+        if location:
+            from backend.services.rag.service import DISTRICT_CENTROIDS
+            lat, lon = DISTRICT_CENTROIDS.get(location.lower(), (None, None))
+
         alert = WeatherAlert(
             title=title,
             description=description,
             severity=severity,
             source=source,
+            latitude=lat,
+            longitude=lon,
         )
 
         return alert

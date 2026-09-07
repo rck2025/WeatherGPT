@@ -109,6 +109,26 @@ class UniversalScraper:
         self.keywords = [k.lower() for k in (keywords or self.DISASTER_KEYWORDS)]
         self.timeout = timeout
 
+    def is_secure_hostname(self, url: str) -> bool:
+        """
+        Secure Hostname Check:
+        Only trust official .gov.in and reliefweb.int domains.
+        """
+        if not url or not isinstance(url, str):
+            return False
+        try:
+            parsed = urlparse(url)
+            hostname = (parsed.hostname or "").lower()
+            if not hostname:
+                return False
+            return (
+                hostname.endswith(".gov.in")
+                or hostname == "reliefweb.int"
+                or hostname.endswith(".reliefweb.int")
+            )
+        except Exception:
+            return False
+
     def is_relevant(self, text: str, url: str = "") -> bool:
         """
         Grounded Check: Logs the matched keyword for verification.
@@ -117,12 +137,10 @@ class UniversalScraper:
             return False
 
         text_lower = text.lower()
-        url_lower = url.lower()
 
-        # 1. AUTO-TRUST: If it's an official IMD or NDMA report, we want it regardless of keywords
-        trusted_domains = ["imd.gov.in", "ndma.gov.in", "incois.gov.in"]
-        if any(domain in url_lower for domain in trusted_domains):
-            logger.info(f"💎 [AUTO-TRUST] Government Source: {url}")
+        # 1. AUTO-TRUST: If it's an official .gov.in or reliefweb.int domain, trust regardless of keywords
+        if self.is_secure_hostname(url):
+            logger.info(f"💎 [AUTO-TRUST] Verified Official Domain: {url}")
             return True
 
         # 2. KEYWORD CHECK: See which word matches
@@ -180,6 +198,10 @@ class UniversalScraper:
 
     def _extract_from_url(self, url: str) -> Optional[str]:
         """Fetch web page and strip HTML tags to extract clean text."""
+        if not self.is_secure_hostname(url):
+            logger.warning(f"🔒 [SECURITY BLOCKED] Untrusted domain: {url}. Only .gov.in and reliefweb.int are authorized.")
+            return None
+
         if requests is None:
             logger.error("Missing dependency 'requests'. Please install: pip install requests")
             return None

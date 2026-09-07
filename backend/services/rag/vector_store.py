@@ -1,7 +1,10 @@
 import logging
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_chroma import Chroma
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
