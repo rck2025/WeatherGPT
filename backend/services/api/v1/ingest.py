@@ -1,9 +1,11 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import os
+import secrets
 import threading
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.schemas import WeatherAlert
@@ -68,7 +70,10 @@ def _process_single_source(source: str) -> Optional[WeatherAlert]:
 
 
 @router.post("/batch", response_model=IngestBatchResponse)
-async def ingest_batch(request: IngestBatchRequest) -> IngestBatchResponse:
+async def ingest_batch(
+    request: IngestBatchRequest,
+    x_ingest_token: str | None = Header(default=None),
+) -> IngestBatchResponse:
     """
     High-throughput concurrent batch ingestion endpoint.
     
@@ -78,6 +83,13 @@ async def ingest_batch(request: IngestBatchRequest) -> IngestBatchResponse:
     3. Adapt: Transform into a validated WeatherAlert model with location extraction.
     4. If valid, append the WeatherAlert to the global alerts list in main.py.
     """
+    expected_token = os.getenv("INGEST_API_TOKEN", "").strip()
+    if expected_token and (
+        not x_ingest_token
+        or not secrets.compare_digest(x_ingest_token, expected_token)
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized ingestion request.")
+
     import backend.main as main_module
 
     if not request.sources:

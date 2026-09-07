@@ -5,6 +5,8 @@ httpx
 python-dotenv
 
 requests
+beautifulsoup4
+PyMuPDF
 
 langchain-google-genai
 langchain-community

@@ -94,7 +94,7 @@ Here are the key modules and their file locations in the repository:
 The pipeline begins at [`hunter.py`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/hunter.py).
 *   **Source Discovery:** Reads [`source_registry.json`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/data/source_registry.json) to retrieve targeted URLs.
 *   **PDF Crawling:** Requests each page, parses anchors (`<a>`) using BeautifulSoup, identifies URL endings in `.pdf`, and normalizes them into fully-qualified links.
-*   **Handover:** Posts the batch of discovered PDFs to the backend ingestion endpoint `http://127.0.0.1:8000/api/v1/ingest/batch` to keep the engine synchronized.
+*   **Handover:** Posts the batch of discovered PDFs to the backend ingestion endpoint. Set `INGEST_API_URL` to the deployed `/api/v1/ingest/batch` URL when running the hunter in the cloud; local development defaults to `http://127.0.0.1:8000/api/v1/ingest/batch`.
 
 ### 2. Multi-Format Extraction (`scraper.py`)
 The scraper class [`UniversalScraper`](file:///c:/Users/Tahmeed%20Alam/.gemini/antigravity-ide/scratch/WeatherGPT/backend/services/ingestion/scraper.py) handles extraction from multiple file types:
