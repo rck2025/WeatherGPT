@@ -599,7 +599,13 @@ class WeatherGPTBrain:
         for document, score in results:
             page = document.metadata.get("page")
             page_suffix = f" (Page {int(page) + 1})" if page is not None else ""
-            source = f"{Path(document.metadata.get('source', 'Unknown')).name}{page_suffix}"
+            # Chroma can retain metadata produced on another operating system.
+            # Normalise both Windows and POSIX separators before exposing the
+            # source to the client, so an old absolute local path never leaks
+            # into the deployed UI.
+            raw_source = str(document.metadata.get("source", "Unknown"))
+            source_name = raw_source.replace("\\", "/").rsplit("/", 1)[-1]
+            source = f"{source_name or 'Unknown'}{page_suffix}"
             content = document.page_content.strip()
             sources.append(
                 {
