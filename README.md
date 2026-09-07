@@ -292,11 +292,17 @@ The server starts both background jobs by default:
 - `WEATHER_CACHE_TTL_SECONDS=600` caches each location's complete Open-Meteo
   response for ten minutes. This is especially important on Render, where
   public Open-Meteo traffic can share a rate-limited outbound IP.
+- `ENABLE_API_DOCS=false` disables `/docs`, `/redoc`, and `/openapi.json`.
+  This is the secure default for a public deployment.
 
 Set either `AUTO_RAG_INGEST=false` or `AUTO_HUNTER=false` in Render Environment
 when troubleshooting. If you run more than one web worker/instance, set
 `AUTO_HUNTER=false` for the web service and run the hunter only once as a Render
 Cron Job; otherwise every worker will independently scrape the same sources.
+
+For local API exploration only, start the server with `ENABLE_API_DOCS=true`;
+do not set that value in Render unless the API specification is intended to be
+public.
 
 ### Run the hunter from a Render Shell
 

@@ -131,10 +131,17 @@ def detect_script_language(text: str) -> str | None:
         return lang
     return None
 
+ENABLE_API_DOCS = _env_enabled("ENABLE_API_DOCS", default=False)
+
 app = FastAPI(
     title="WeatherGPT API",
     version="0.1.0",
     lifespan=lifespan,
+    # Swagger exposes the API contract and every documented endpoint. Keep it
+    # off by default; opt in only for trusted local development.
+    docs_url="/docs" if ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_API_DOCS else None,
 )
 
 @app.middleware("http")
