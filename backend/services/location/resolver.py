@@ -23,7 +23,21 @@ class LocationResolver:
         # --- 1. REVERSE GEOCODING (GPS Check) ---
         if loc_in and self._is_valid_gps(loc_in.latitude, loc_in.longitude):
             res = self._reverse_geocode(loc_in.latitude, loc_in.longitude)
-            if res: return res
+            if res:
+                return res
+
+            # Coordinates are already enough for Open-Meteo and geospatial
+            # rendering. Nominatim is only used to enrich them with a city
+            # label, so a timeout/rate-limit must never make location lookup
+            # fatal or force an unrelated IP-based fallback.
+            return Location(
+                latitude=loc_in.latitude,
+                longitude=loc_in.longitude,
+                city=loc_in.city or loc_in.district,
+                state=loc_in.state,
+                country=loc_in.country or "India",
+                timezone="Asia/Kolkata",
+            )
 
         # --- 2. FORWARD GEOCODING (Search Check) ---
         search_query = self._extract_query(loc_in)
