@@ -80,19 +80,39 @@
 
         <!-- Terminal Composer Area -->
         <div class="terminal-composer">
-          <!-- Quick Prompts Bar -->
-          <div class="quick-prompts-bar">
-            <button class="quick-prompt-btn" type="button" data-prompt="What is the synoptic weather situation in the Bay of Bengal?" data-t="QUICK_BOB">
-              &gt; Bay of Bengal Systems
+          <!-- Quick Prompts Bar: Universal Human-Intent Actions -->
+          <div class="quick-prompts-bar" id="quickPromptsBar">
+            <button
+              class="quick-prompt-btn"
+              type="button"
+              data-t="QUERY_SAFETY"
+              onclick="sendQuickQuery(this.textContent)"
+            >
+              Is it safe to go out right now?
             </button>
-            <button class="quick-prompt-btn" type="button" data-prompt="What is the weather in Kolkata and are there any active rain alerts?" data-t="QUICK_KOLKATA">
-              &gt; Kolkata Weather &amp; Alerts
+            <button
+              class="quick-prompt-btn"
+              type="button"
+              data-t="QUERY_RAIN"
+              onclick="sendQuickQuery(this.textContent)"
+            >
+              Will it rain in the next hour?
             </button>
-            <button class="quick-prompt-btn" type="button" data-prompt="What safety precautions should be followed during heavy rainfall according to NDMA?" data-t="QUICK_NDMA">
-              &gt; NDMA Flood SOPs
+            <button
+              class="quick-prompt-btn"
+              type="button"
+              data-t="QUERY_HISTORY"
+              onclick="sendQuickQuery(this.textContent)"
+            >
+              How was the weather yesterday?
             </button>
-            <button class="quick-prompt-btn" type="button" data-prompt="What is the current meteorological forecast for Delhi NCR?" data-t="QUICK_DELHI">
-              &gt; Delhi NCR Advisory
+            <button
+              class="quick-prompt-btn"
+              type="button"
+              data-t="QUERY_CROP"
+              onclick="sendQuickQuery(this.textContent)"
+            >
+              Give me today's crop advisory.
             </button>
           </div>
 

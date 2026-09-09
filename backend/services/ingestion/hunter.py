@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import json
-import os
 from pathlib import Path
 import sys
 
@@ -23,13 +22,6 @@ class GlobalClimateHunter:
         with open(registry_path, 'r') as f:
             self.registry = json.load(f)
         self.headers = {"User-Agent": "WeatherGPT-SIH-Bot/1.0"}
-        # Defaults to the local API for development and a Render Shell. Set
-        # INGEST_API_URL to the public deployed endpoint for an external cron.
-        local_port = os.getenv("PORT", "8000")
-        self.ingest_url = os.getenv(
-            "INGEST_API_URL", f"http://127.0.0.1:{local_port}/api/v1/ingest/batch"
-        ).strip()
-        self.ingest_token = os.getenv("INGEST_API_TOKEN", "").strip()
 
     def hunt_for_pdfs(self):
         all_discovered_links = []
@@ -43,7 +35,6 @@ class GlobalClimateHunter:
             print(f"[HUNT] Scanning: {url}")
             try:
                 res = requests.get(url, headers=self.headers, timeout=10)
-                res.raise_for_status()
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
                 # Logic: Find every PDF link on the page
@@ -61,30 +52,16 @@ class GlobalClimateHunter:
         if not pdf_list:
             print("[INFO] No PDFs found to ingest.")
             return
-        print(f"[START] Found {len(pdf_list)} new bulletins. Sending to ingestion API...")
+        print(f"[START] Found {len(pdf_list)} new bulletins. Sending to RAG Brain...")
         
-        if not self.ingest_url:
-            print("[ERROR] INGEST_API_URL is not configured.")
-            return
-
-        # Keep cloud-job concurrency modest to avoid overloading or being
-        # rate-limited by official bulletin hosts.
-        payload = {"sources": pdf_list, "max_workers": 3}
-        headers = {"Content-Type": "application/json"}
-        if self.ingest_token:
-            headers["X-Ingest-Token"] = self.ingest_token
+        # This calls YOUR verified ingestion API
+        ingest_url = "http://127.0.0.1:8000/api/v1/ingest/batch"
+        payload = {"sources": pdf_list}
         
         try:
-            res = requests.post(
-                self.ingest_url, json=payload, headers=headers, timeout=180
-            )
+            res = requests.post(ingest_url, json=payload)
             res.raise_for_status()
-            summary = res.json()
-            print(
-                "[SUCCESS] Ingestion complete: "
-                f"{summary.get('ingested_count', 0)}/"
-                f"{summary.get('total_sources', len(pdf_list))} sources accepted."
-            )
+            print("[SUCCESS] RAG Synchronized with the latest hunt results.")
         except Exception as e:
             print(f"[ERROR] Handover failed: {e}")
 

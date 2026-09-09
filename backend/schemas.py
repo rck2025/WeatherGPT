@@ -52,6 +52,13 @@ class HourlyForecast(BaseModel):
     weather_code: int | None = None
 
 
+class Minutely15Forecast(BaseModel):
+    timestamp: datetime
+    precipitation: float | None = None
+    weather_code: int | None = None
+    rain: float | None = None
+
+
 class DailyForecast(BaseModel):
     date: datetime
     temperature_max: float | None = None
@@ -64,6 +71,7 @@ class WeatherResponse(BaseModel):
     current: CurrentWeatherData | None = None
     hourly: list[HourlyForecast] = []
     daily: list[DailyForecast] = []
+    minutely_15: list[Minutely15Forecast] = []
 
 
 # -------------------------
@@ -79,6 +87,7 @@ class WeatherAlert(BaseModel):
     longitude: float | None = None
     is_historical: bool = False
     occurred_at: datetime | None = None
+    lightning_active: bool = False
 
 
 # -------------------------
@@ -134,6 +143,8 @@ class ChatResponse(BaseModel):
     transcription_method: str | None = "Whisper"
     transcription_confidence: float | None = None
     locked_language_code: str | None = None
+    confidence_score: float = 1.0
+    model_disagreement: bool = False
 
 
 # -------------------------
@@ -155,5 +166,7 @@ class FullPipelineResponse(BaseModel):
     transcription_method: str | None = "Whisper"
     transcription_confidence: float | None = None
     locked_language_code: str = "en"
+    confidence_score: float = 1.0
+    model_disagreement: bool = False
 
 

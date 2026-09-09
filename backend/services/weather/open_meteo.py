@@ -12,6 +12,7 @@ from backend.schemas import (
     CurrentWeatherData,
     HourlyForecast,
     DailyForecast,
+    Minutely15Forecast,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class OpenMeteoService:
         self,
         location: Location,
     ) -> Optional[WeatherResponse]:
-        """Fetch current weather and 7-day forecast."""
+        """Fetch current weather, 15-minute minutely nowcast, and 7-day forecast."""
 
         key = self._cache_key(location)
         cached = self._fresh_cache_entry(key)
@@ -80,6 +81,13 @@ class OpenMeteoService:
             "longitude": location.longitude,
             "timezone": self.TIMEZONE,
             "forecast_days": 7,
+
+            # Fields available in Minutely15Forecast (NWP High-Res Nowcasting)
+            "minutely_15": [
+                "precipitation",
+                "weather_code",
+                "rain",
+            ],
 
             # Fields available in CurrentWeatherData
             "current": [
@@ -122,9 +130,10 @@ class OpenMeteoService:
                 response.raise_for_status()
                 data = response.json()
 
-            current = data["current"]
-            hourly = data["hourly"]
-            daily = data["daily"]
+            current = data.get("current", {})
+            hourly = data.get("hourly", {})
+            daily = data.get("daily", {})
+            minutely = data.get("minutely_15", {})
 
             # Current weather
             current_weather = CurrentWeatherData(
@@ -136,41 +145,59 @@ class OpenMeteoService:
                 weather_code=current.get("weather_code"),
             )
 
-            # 48 hourly forecasts, then every 6 hours
-            hourly_forecast = []
-
-            for i, timestamp in enumerate(hourly["time"]):
-                if i < 48 or (i >= 48 and (i - 48) % 6 == 0):
-                    hourly_forecast.append(
-                        HourlyForecast(
+            # Minutely 15-minute NWP intervals for high-resolution nowcast
+            minutely_15_forecast = []
+            if minutely and "time" in minutely:
+                m_times = minutely.get("time", [])
+                m_precips = minutely.get("precipitation", [])
+                m_codes = minutely.get("weather_code", [])
+                m_rains = minutely.get("rain", [])
+                for i, timestamp in enumerate(m_times):
+                    minutely_15_forecast.append(
+                        Minutely15Forecast(
                             timestamp=timestamp,
-                            temperature=hourly["temperature_2m"][i],
-                            feels_like=hourly["apparent_temperature"][i],
-                            humidity=hourly["relative_humidity_2m"][i],
-                            precipitation=hourly["precipitation"][i],
-                            wind_speed=hourly["wind_speed_10m"][i],
-                            weather_code=hourly["weather_code"][i],
+                            precipitation=m_precips[i] if i < len(m_precips) else None,
+                            weather_code=m_codes[i] if i < len(m_codes) else None,
+                            rain=m_rains[i] if i < len(m_rains) else None,
                         )
                     )
 
+            # 48 hourly forecasts, then every 6 hours
+            hourly_forecast = []
+            if hourly and "time" in hourly:
+                for i, timestamp in enumerate(hourly["time"]):
+                    if i < 48 or (i >= 48 and (i - 48) % 6 == 0):
+                        hourly_forecast.append(
+                            HourlyForecast(
+                                timestamp=timestamp,
+                                temperature=hourly["temperature_2m"][i],
+                                feels_like=hourly["apparent_temperature"][i],
+                                humidity=hourly["relative_humidity_2m"][i],
+                                precipitation=hourly["precipitation"][i],
+                                wind_speed=hourly["wind_speed_10m"][i],
+                                weather_code=hourly["weather_code"][i],
+                            )
+                        )
+
             # 7-day daily forecast
             daily_forecast = []
-
-            for i, date in enumerate(daily["time"]):
-                daily_forecast.append(
-                    DailyForecast(
-                        date=date,
-                        temperature_max=daily["temperature_2m_max"][i],
-                        temperature_min=daily["temperature_2m_min"][i],
-                        precipitation=daily["precipitation_sum"][i],
-                        weather_code=daily["weather_code"][i],
+            if daily and "time" in daily:
+                for i, date in enumerate(daily["time"]):
+                    daily_forecast.append(
+                        DailyForecast(
+                            date=date,
+                            temperature_max=daily["temperature_2m_max"][i],
+                            temperature_min=daily["temperature_2m_min"][i],
+                            precipitation=daily["precipitation_sum"][i],
+                            weather_code=daily["weather_code"][i],
+                        )
                     )
-                )
 
             weather = WeatherResponse(
                 current=current_weather,
                 hourly=hourly_forecast,
                 daily=daily_forecast,
+                minutely_15=minutely_15_forecast,
             )
             self._cache[key] = (time.monotonic(), weather)
             return weather
@@ -184,5 +211,6 @@ class OpenMeteoService:
                 return stale[1]
             logger.error("Open-Meteo request failed: %s", exc)
             return None
+
 
 open_meteo_service = OpenMeteoService()

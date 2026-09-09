@@ -1,5 +1,4 @@
 import logging
-import json
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
 try:
@@ -13,12 +12,6 @@ logger = logging.getLogger(__name__)
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DB_DIR = BACKEND_DIR / "vector_db"
 DATA_DIR = BACKEND_DIR / "data"
-INGESTION_MARKER = ".weathergpt_ingested.json"
-
-
-def is_ingested(db_path: Path = DB_DIR) -> bool:
-    """Whether this application's bulletin index was successfully built."""
-    return (Path(db_path) / INGESTION_MARKER).is_file()
 
 def load_vector_db(db_path: Path = DB_DIR, embeddings = None) -> Chroma | None:
     """Load an already-ingested local database when one is available."""
@@ -66,9 +59,6 @@ def ingest_bulletins(data_path: Path = DATA_DIR, db_path: Path = DB_DIR, embeddi
         documents=chunks,
         embedding=embeddings,
         persist_directory=str(db_path),
-    )
-    (db_path / INGESTION_MARKER).write_text(
-        json.dumps({"pdf_count": len(pdf_files)}), encoding="utf-8"
     )
     logger.info(
         "Ingested %d PDF bulletin(s) into %s.",

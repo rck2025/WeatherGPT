@@ -1,11 +1,9 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import logging
-import os
-import secrets
 import threading
 from typing import List, Optional
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.schemas import WeatherAlert
@@ -69,42 +67,8 @@ def _process_single_source(source: str) -> Optional[WeatherAlert]:
     return None
 
 
-async def process_sources(
-    sources: List[str], max_workers: int = 10
-) -> List[WeatherAlert]:
-    """Scrape and adapt sources without requiring an HTTP round trip.
-
-    This is shared by the public endpoint and the app-start hunter, so the
-    startup task does not have to call its own server before it is listening.
-    """
-    if not sources:
-        return []
-
-    loop = asyncio.get_running_loop()
-    workers = min(max_workers or 10, len(sources))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = [
-            loop.run_in_executor(executor, _process_single_source, source)
-            for source in sources
-        ]
-        results = await asyncio.gather(*futures, return_exceptions=False)
-    return [result for result in results if result is not None]
-
-
-def append_alerts(ingested_alerts: List[WeatherAlert]) -> None:
-    """Append a batch to the live alert list under one shared lock."""
-    if not ingested_alerts:
-        return
-    import backend.main as main_module
-    with _alerts_lock:
-        main_module.alerts.extend(ingested_alerts)
-
-
 @router.post("/batch", response_model=IngestBatchResponse)
-async def ingest_batch(
-    request: IngestBatchRequest,
-    x_ingest_token: str | None = Header(default=None),
-) -> IngestBatchResponse:
+async def ingest_batch(request: IngestBatchRequest) -> IngestBatchResponse:
     """
     High-throughput concurrent batch ingestion endpoint.
     
@@ -114,20 +78,28 @@ async def ingest_batch(
     3. Adapt: Transform into a validated WeatherAlert model with location extraction.
     4. If valid, append the WeatherAlert to the global alerts list in main.py.
     """
-    expected_token = os.getenv("INGEST_API_TOKEN", "").strip()
-    if expected_token and (
-        not x_ingest_token
-        or not secrets.compare_digest(x_ingest_token, expected_token)
-    ):
-        raise HTTPException(status_code=401, detail="Unauthorized ingestion request.")
+    import backend.main as main_module
 
     if not request.sources:
         raise HTTPException(status_code=400, detail="Sources list cannot be empty.")
 
-    ingested_alerts = await process_sources(request.sources, request.max_workers or 10)
+    loop = asyncio.get_running_loop()
+    max_workers = min(request.max_workers or 10, len(request.sources))
+
+    # Run parallel extraction across thread pool
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            loop.run_in_executor(executor, _process_single_source, source)
+            for source in request.sources
+        ]
+        results = await asyncio.gather(*futures, return_exceptions=False)
+
+    ingested_alerts: List[WeatherAlert] = [r for r in results if r is not None]
     failed_count = len(request.sources) - len(ingested_alerts)
 
-    append_alerts(ingested_alerts)
+    # Thread-safe batch append to global alerts
+    with _alerts_lock:
+        main_module.alerts.extend(ingested_alerts)
 
     logger.info(
         f"Batch ingestion complete: {len(ingested_alerts)}/{len(request.sources)} sources ingested."

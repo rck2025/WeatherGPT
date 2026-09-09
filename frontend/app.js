@@ -488,18 +488,44 @@ function flyToHazard(alert) {
   }
 }
 
-// ── 3. Ticker Tape Binding (Synoptic Overview) ───────────────────────────────
-function bindTickerTape(botReply) {
-  if (!botReply || !elements.tickerTrack) return;
+// ── 3. Ticker Tape Binding (Synoptic Overview & Lightning Tactical Update) ───
+function bindTickerTape(botReply, alertsData) {
+  if (!elements.tickerTrack) return;
+
+  const alerts = alertsData || state.currentAlerts || [];
+  const hasLightning = alerts.some(a => 
+    a.lightning_active === true || 
+    (a.title && a.title.toLowerCase().includes('lightning')) ||
+    (a.description && a.description.toLowerCase().includes('lightning'))
+  ) || (botReply && botReply.toLowerCase().includes('lightning strikes detected'));
+
+  // Task 5: If lightning is detected, force the top scrolling ticker
+  if (hasLightning) {
+    const lightningMsg = '🚨 TACTICAL UPDATE: LIGHTNING STRIKES DETECTED WITHIN 20KM RADIUS. SEEK SHELTER.';
+    elements.tickerTrack.textContent = lightningMsg;
+    elements.tickerTrack.classList.add('ticker-track-lightning');
+    elements.tickerTrack.style.cursor = 'pointer';
+    elements.tickerTrack.title = 'EMERGENCY: Active lightning strikes detected. Click to fly tactical radar.';
+    elements.tickerTrack.onclick = () => {
+      const lAlert = alerts.find(a => a.lightning_active || (a.title && a.title.toLowerCase().includes('lightning')));
+      if (lAlert) {
+        flyToHazard(lAlert);
+      } else if (alerts.length > 0) {
+        flyToHazard(alerts[0]);
+      }
+    };
+    return;
+  }
+  elements.tickerTrack.classList.remove('ticker-track-lightning');
 
   // Task 2: Bind the first sentence of bot_reply (Synoptic Overview) to the top marquee
   let synopticText = '';
 
   // 1. Look for explicit Synoptic Status section or Low Pressure / Nowcast sentence
-  const synopticMatch = botReply.match(/SYNOPTIC (?:STATUS|OVERVIEW)[:\s*#]+([^\n#]+)/i);
+  const synopticMatch = botReply ? botReply.match(/SYNOPTIC (?:STATUS|OVERVIEW)[:\s*#]+([^\n#]+)/i) : null;
   if (synopticMatch && synopticMatch[1] && synopticMatch[1].trim().length > 10) {
     synopticText = synopticMatch[1].trim();
-  } else {
+  } else if (botReply) {
     const lowPressureMatch = botReply.match(/([^.\n]*?(?:low[- ]pressure|depression|trough|nowcast)[^.\n]*?[.!?])/i);
     if (lowPressureMatch && lowPressureMatch[1] && lowPressureMatch[1].trim().length > 15) {
       synopticText = lowPressureMatch[1].trim();
@@ -507,7 +533,7 @@ function bindTickerTape(botReply) {
   }
 
   // 2. Fallback to the first sentence of bot_reply
-  if (!synopticText) {
+  if (!synopticText && botReply) {
     let cleanText = botReply
       .replace(/^#+\s*/gm, '')
       .replace(/[*_`>~#]/g, '')
@@ -521,12 +547,14 @@ function bindTickerTape(botReply) {
   }
 
   // Clean remaining markdown formatting
-  synopticText = synopticText
-    .replace(/^SYNOPTIC\s+(?:STATUS|OVERVIEW)[:\s-]*/i, '')
-    .replace(/[*_`>~#]/g, '')
-    .replace(/^[-\u2022]\s+/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  if (synopticText) {
+    synopticText = synopticText
+      .replace(/^SYNOPTIC\s+(?:STATUS|OVERVIEW)[:\s-]*/i, '')
+      .replace(/[*_`>~#]/g, '')
+      .replace(/^[-\u2022]\s+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
   if (!synopticText || synopticText.length < 5) {
     synopticText = 'LOW PRESSURE SYSTEM ACTIVE OVER THE BAY OF BENGAL // MONITORING 3-HOUR NOWCASTS';
@@ -665,6 +693,43 @@ function appendSystemLoading() {
   return loadingEntry;
 }
 
+// ── Collapsible Intel Panel Helpers ─────────────────────────────────────────
+function updateIntelToggleText(btn, customLabel) {
+  if (!btn) return;
+  const isExpanded = btn.getAttribute('data-state') === 'expanded';
+  const count = btn.getAttribute('data-count') || '0';
+  const suffix = btn.getAttribute('data-count-suffix') || '';
+  const key = btn.getAttribute('data-t');
+
+  const currentLang = elements.languageSelect ? elements.languageSelect.value : 'en';
+  const code = (currentLang || 'en').toLowerCase().split('-')[0];
+  const localeSource = (typeof UI_LOCALE !== 'undefined') ? UI_LOCALE : (window.UI_LOCALE || {});
+  const dict = localeSource[code] || localeSource['en'] || {};
+  const baseLabel = customLabel || dict[key] || (key === 'BTN_SOURCES' ? 'SOURCES // INTEL' : 'RADAR HAZARDS');
+
+  if (isExpanded) {
+    btn.textContent = `[-] HIDE ${baseLabel} (${count}${suffix})`;
+  } else {
+    btn.textContent = `[+] ${baseLabel} (${count}${suffix})`;
+  }
+}
+
+function toggleIntelPanel(btn, panelId) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const isExpanded = btn.getAttribute('data-state') === 'expanded';
+  if (isExpanded) {
+    panel.style.display = 'none';
+    btn.setAttribute('data-state', 'collapsed');
+    btn.classList.remove('is-active');
+  } else {
+    panel.style.display = 'block';
+    btn.setAttribute('data-state', 'expanded');
+    btn.classList.add('is-active');
+  }
+  updateIntelToggleText(btn);
+}
+
 function appendBotMessage(response) {
   const msgEntry = document.createElement('div');
   msgEntry.className = 'message-entry bot-message';
@@ -672,6 +737,33 @@ function appendBotMessage(response) {
   const prefix = document.createElement('span');
   prefix.className = 'message-prefix';
   prefix.textContent = 'METEOROLOGICAL_INTELLIGENCE';
+
+  // Task 4: Confidence UI Binding - Terminal-Style Bar [#####-----] (50%)
+  const confGauge = document.createElement('div');
+  confGauge.className = 'confidence-gauge-bar';
+  const confScore = (response && response.confidence_score != null) ? Number(response.confidence_score) : 1.0;
+  const isConflict = Boolean(response && response.model_disagreement);
+  const clampedScore = Math.max(0.0, Math.min(1.0, confScore));
+  const hashes = Math.round(clampedScore * 10);
+  const dashes = 10 - hashes;
+  const pct = Math.round(clampedScore * 100);
+  const barGraphic = `[${'#'.repeat(hashes)}${'-'.repeat(dashes)}] (${pct}%)`;
+
+  if (isConflict) {
+    confGauge.classList.add('is-conflict');
+    confGauge.innerHTML = `
+      <span class="confidence-label">CONFIDENCE:</span>
+      <span class="confidence-bar">${barGraphic}</span>
+      <span class="confidence-warning-badge">⚠️ MODEL DISAGREEMENT (GROUND SENSORS OVERRIDE NWP)</span>
+    `;
+    confGauge.title = 'Numerical models disagree with local AWS/Radar observations. Ground sensors take precedence.';
+  } else {
+    confGauge.innerHTML = `
+      <span class="confidence-label">CONFIDENCE:</span>
+      <span class="confidence-bar">${barGraphic}</span>
+      <span class="confidence-status-badge">MULTI-SENSOR CONSENSUS</span>
+    `;
+  }
 
   const contentDiv = document.createElement('div');
   contentDiv.className = 'message-content';
@@ -684,7 +776,7 @@ function appendBotMessage(response) {
     contentDiv.textContent = rawReply;
   }
 
-  msgEntry.append(prefix, contentDiv);
+  msgEntry.append(prefix, confGauge, contentDiv);
 
   // Audio Playback Attachment if response.audio_url or audio_base64 exists
   const audioSrc = response.audio_base64 || response.audio_url;
@@ -740,147 +832,209 @@ function appendBotMessage(response) {
     msgEntry.appendChild(audioWrap);
   }
 
-  // Task 3: Render de-duplicated response.sources in a clean monospace badge row
+  // ── Collapsible Intel Panels (Sources & Radar Hazards) ──
   const rawSources = response.sources || [];
-  if (rawSources.length > 0) {
-    const badgeRow = document.createElement('div');
-    badgeRow.className = 'source-badge-row';
-
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'source-badge-label';
-    labelSpan.textContent = 'SOURCES:';
-    badgeRow.appendChild(labelSpan);
-
-    // De-duplication map keyed by normalized (source name + page)
-    const uniqueSources = new Map();
-    rawSources.forEach((src) => {
-      const srcName = (src.source || 'Official IMD Document').trim();
-      const normKey = srcName.toLowerCase();
-
-      if (!uniqueSources.has(normKey)) {
-        uniqueSources.set(normKey, {
-          source: srcName,
-          content: src.content || '',
-          score: src.score != null ? src.score : null,
-          count: 1,
-        });
-      } else {
-        const existing = uniqueSources.get(normKey);
-        existing.count += 1;
-        if (src.score != null && (existing.score == null || src.score > existing.score)) {
-          existing.score = src.score;
-        }
-        if (src.content && !existing.content.includes(src.content.slice(0, 60))) {
-          existing.content += '\n\n' + src.content;
-        }
-      }
-    });
-
-    uniqueSources.forEach((entry) => {
-      // Determine page number and file path for full MoES transparency
-      let pageNum = 'Page 1';
-      const pageMatch = (entry.source + ' ' + entry.content).match(/(?:page|p\.)\s*(\d+)/i);
-      if (pageMatch) {
-        pageNum = `Page ${pageMatch[1]}`;
-      } else if (entry.count > 1) {
-        pageNum = `Pages 1-${entry.count}`;
-      }
-
-      let docFilename = 'national_disaster_management_plan.pdf';
-      const sLower = entry.source.toLowerCase();
-      if (sLower.includes('bulletin') || sLower.includes('nowcast')) {
-        docFilename = 'national_bulletin.pdf';
-      } else if (sLower.includes('source_registry')) {
-        docFilename = 'source_registry.json';
-      }
-      const docUrl = `/data/${docFilename}`;
-
-      const badgeWrap = document.createElement('div');
-      badgeWrap.style.display = 'inline-flex';
-      badgeWrap.style.alignItems = 'center';
-      badgeWrap.style.gap = '2px';
-
-      const badge = document.createElement('button');
-      badge.type = 'button';
-      badge.className = 'wm-source-badge';
-
-      let tagLabel = 'DOC';
-      if (sLower.includes('imd')) tagLabel = 'IMD';
-      else if (sLower.includes('usgs')) tagLabel = 'USGS';
-      else if (sLower.includes('incois')) tagLabel = 'INCOIS';
-      else if (sLower.includes('ndmp')) tagLabel = 'NDMP';
-
-      const countSuffix = entry.count > 1 ? ` (${entry.count}x)` : '';
-      badge.innerHTML = `<span class="badge-tag">[${tagLabel}]</span> ${escapeHtml(entry.source)} <span style="color:#00FF41; font-weight:700;">(${pageNum})</span>${countSuffix}`;
-      badge.title = `Click to inspect document excerpt (${entry.count} references merged)`;
-
-      badge.addEventListener('click', () => {
-        openSourceModal({
-          source: entry.source,
-          content: entry.content,
-          score: entry.score,
-          page: pageNum,
-          docUrl: docUrl,
-        });
-      });
-
-      const docLink = document.createElement('a');
-      docLink.href = docUrl;
-      docLink.target = '_blank';
-      docLink.rel = 'noopener';
-      docLink.className = 'wm-source-view-link';
-      docLink.style.fontSize = '9px';
-      docLink.style.color = '#00FF41';
-      docLink.style.textDecoration = 'underline';
-      docLink.style.marginLeft = '3px';
-      docLink.textContent = '[VIEW DOC]';
-      docLink.title = `Open ${docFilename} in browser`;
-
-      badgeWrap.appendChild(badge);
-      badgeWrap.appendChild(docLink);
-      badgeRow.appendChild(badgeWrap);
-    });
-
-    msgEntry.appendChild(badgeRow);
-  }
-
-  // De-duplicated response.alerts in clean monospace hazard row
   const rawAlerts = response.alerts || [];
-  if (rawAlerts.length > 0) {
-    const hazardRow = document.createElement('div');
-    hazardRow.className = 'source-badge-row';
-    hazardRow.style.marginTop = '4px';
 
-    const hLabel = document.createElement('span');
-    hLabel.className = 'source-badge-label';
-    hLabel.textContent = 'RADAR HAZARDS:';
-    hazardRow.appendChild(hLabel);
+  // De-duplication map for sources
+  const uniqueSources = new Map();
+  rawSources.forEach((src) => {
+    const srcName = (src.source || 'Official IMD Document').trim();
+    const normKey = srcName.toLowerCase();
 
-    const uniqueAlerts = new Map();
-    rawAlerts.forEach((alert) => {
-      const key = `${(alert.title || '').trim()}::${(alert.source || '').trim()}`.toLowerCase();
-      if (!uniqueAlerts.has(key)) {
-        uniqueAlerts.set(key, alert);
+    if (!uniqueSources.has(normKey)) {
+      uniqueSources.set(normKey, {
+        source: srcName,
+        content: src.content || '',
+        score: src.score != null ? src.score : null,
+        count: 1,
+      });
+    } else {
+      const existing = uniqueSources.get(normKey);
+      existing.count += 1;
+      if (src.score != null && (existing.score == null || src.score > existing.score)) {
+        existing.score = src.score;
       }
-    });
+      if (src.content && !existing.content.includes(src.content.slice(0, 60))) {
+        existing.content += '\n\n' + src.content;
+      }
+    }
+  });
 
-    uniqueAlerts.forEach((alert) => {
-      const isHigh = (alert.severity || '').toLowerCase().includes('high');
-      const badge = document.createElement('button');
-      badge.type = 'button';
-      badge.className = 'wm-source-badge wm-hazard-badge';
-      const locText = alert.latitude != null ? ` [${alert.latitude.toFixed(1)}°, ${alert.longitude.toFixed(1)}°]` : '';
-      badge.innerHTML = `<span style="color:${isHigh ? '#FF3131' : '#FFAC1C'}; font-weight:800;">!</span> [${escapeHtml(alert.source || 'HAZARD')}] ${escapeHtml(alert.title || 'Alert')}${locText} &gt;&gt; FLYTO`;
-      badge.title = 'Click to fly tactical radar to this hazard location';
+  // De-duplication map for alerts
+  const uniqueAlerts = new Map();
+  rawAlerts.forEach((alert) => {
+    const key = `${(alert.title || '').trim()}::${(alert.source || '').trim()}`.toLowerCase();
+    if (!uniqueAlerts.has(key)) {
+      uniqueAlerts.set(key, alert);
+    }
+  });
 
-      badge.addEventListener('click', () => {
-        flyToHazard(alert);
+  const hasSources = uniqueSources.size > 0;
+  const hasAlerts = uniqueAlerts.size > 0;
+
+  if (hasSources || hasAlerts) {
+    const intelToggleBar = document.createElement('div');
+    intelToggleBar.className = 'intel-toggle-bar';
+
+    let sourcePanel = null;
+    let hazardPanel = null;
+
+    // 1. Sources Toggle Button & Collapsible Panel
+    if (hasSources) {
+      const sourcesCount = uniqueSources.size;
+      const sourcePanelId = 'intelSources_' + Math.random().toString(36).substring(2, 9);
+
+      const sourceToggleBtn = document.createElement('button');
+      sourceToggleBtn.type = 'button';
+      sourceToggleBtn.className = 'intel-toggle-btn';
+      sourceToggleBtn.setAttribute('data-t', 'BTN_SOURCES');
+      sourceToggleBtn.setAttribute('data-target', sourcePanelId);
+      sourceToggleBtn.setAttribute('data-state', 'collapsed');
+      sourceToggleBtn.setAttribute('data-count', String(sourcesCount));
+      sourceToggleBtn.setAttribute('data-count-suffix', '');
+      updateIntelToggleText(sourceToggleBtn);
+
+      sourceToggleBtn.addEventListener('click', () => {
+        toggleIntelPanel(sourceToggleBtn, sourcePanelId);
+      });
+      intelToggleBar.appendChild(sourceToggleBtn);
+
+      sourcePanel = document.createElement('div');
+      sourcePanel.id = sourcePanelId;
+      sourcePanel.className = 'intel-panel-content';
+      sourcePanel.style.display = 'none';
+
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'source-badge-row';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'source-badge-label';
+      labelSpan.textContent = 'SOURCES:';
+      badgeRow.appendChild(labelSpan);
+
+      uniqueSources.forEach((entry) => {
+        let pageNum = 'Page 1';
+        const pageMatch = (entry.source + ' ' + entry.content).match(/(?:page|p\.)\s*(\d+)/i);
+        if (pageMatch) {
+          pageNum = `Page ${pageMatch[1]}`;
+        } else if (entry.count > 1) {
+          pageNum = `Pages 1-${entry.count}`;
+        }
+
+        let docFilename = 'national_disaster_management_plan.pdf';
+        const sLower = entry.source.toLowerCase();
+        if (sLower.includes('bulletin') || sLower.includes('nowcast')) {
+          docFilename = 'national_bulletin.pdf';
+        } else if (sLower.includes('source_registry')) {
+          docFilename = 'source_registry.json';
+        }
+        const docUrl = `/data/${docFilename}`;
+
+        const badgeWrap = document.createElement('div');
+        badgeWrap.style.display = 'inline-flex';
+        badgeWrap.style.alignItems = 'center';
+        badgeWrap.style.gap = '2px';
+
+        const badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'wm-source-badge';
+
+        let tagLabel = 'DOC';
+        if (sLower.includes('imd')) tagLabel = 'IMD';
+        else if (sLower.includes('usgs')) tagLabel = 'USGS';
+        else if (sLower.includes('incois')) tagLabel = 'INCOIS';
+        else if (sLower.includes('ndmp')) tagLabel = 'NDMP';
+
+        const countSuffix = entry.count > 1 ? ` (${entry.count}x)` : '';
+        badge.innerHTML = `<span class="badge-tag">[${tagLabel}]</span> ${escapeHtml(entry.source)} <span style="color:#00FF41; font-weight:700;">(${pageNum})</span>${countSuffix}`;
+        badge.title = `Click to inspect document excerpt (${entry.count} references merged)`;
+
+        badge.addEventListener('click', () => {
+          openSourceModal({
+            source: entry.source,
+            content: entry.content,
+            score: entry.score,
+            page: pageNum,
+            docUrl: docUrl,
+          });
+        });
+
+        const docLink = document.createElement('a');
+        docLink.href = docUrl;
+        docLink.target = '_blank';
+        docLink.rel = 'noopener';
+        docLink.className = 'wm-source-view-link';
+        docLink.style.fontSize = '9px';
+        docLink.style.color = '#00FF41';
+        docLink.style.textDecoration = 'underline';
+        docLink.style.marginLeft = '3px';
+        docLink.textContent = '[VIEW DOC]';
+        docLink.title = `Open ${docFilename} in browser`;
+
+        badgeWrap.appendChild(badge);
+        badgeWrap.appendChild(docLink);
+        badgeRow.appendChild(badgeWrap);
       });
 
-      hazardRow.appendChild(badge);
-    });
+      sourcePanel.appendChild(badgeRow);
+    }
 
-    msgEntry.appendChild(hazardRow);
+    // 2. Radar Hazards Toggle Button & Collapsible Panel
+    if (hasAlerts) {
+      const alertsCount = Math.max(rawAlerts.length, uniqueAlerts.size);
+      const hazardPanelId = 'intelHazards_' + Math.random().toString(36).substring(2, 9);
+
+      const hazardToggleBtn = document.createElement('button');
+      hazardToggleBtn.type = 'button';
+      hazardToggleBtn.className = 'intel-toggle-btn';
+      hazardToggleBtn.setAttribute('data-t', 'BTN_HAZARDS');
+      hazardToggleBtn.setAttribute('data-target', hazardPanelId);
+      hazardToggleBtn.setAttribute('data-state', 'collapsed');
+      hazardToggleBtn.setAttribute('data-count', String(alertsCount));
+      hazardToggleBtn.setAttribute('data-count-suffix', ' ACTIVE');
+      updateIntelToggleText(hazardToggleBtn);
+
+      hazardToggleBtn.addEventListener('click', () => {
+        toggleIntelPanel(hazardToggleBtn, hazardPanelId);
+      });
+      intelToggleBar.appendChild(hazardToggleBtn);
+
+      hazardPanel = document.createElement('div');
+      hazardPanel.id = hazardPanelId;
+      hazardPanel.className = 'intel-panel-content';
+      hazardPanel.style.display = 'none';
+
+      const hazardRow = document.createElement('div');
+      hazardRow.className = 'source-badge-row';
+
+      const hLabel = document.createElement('span');
+      hLabel.className = 'source-badge-label';
+      hLabel.textContent = 'RADAR HAZARDS:';
+      hazardRow.appendChild(hLabel);
+
+      uniqueAlerts.forEach((alert) => {
+        const isHigh = (alert.severity || '').toLowerCase().includes('high');
+        const badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'wm-source-badge wm-hazard-badge';
+        const locText = alert.latitude != null ? ` [${alert.latitude.toFixed(1)}°, ${alert.longitude.toFixed(1)}°]` : '';
+        badge.innerHTML = `<span style="color:${isHigh ? '#FF3131' : '#FFAC1C'}; font-weight:800;">!</span> [${escapeHtml(alert.source || 'HAZARD')}] ${escapeHtml(alert.title || 'Alert')}${locText} &gt;&gt; FLYTO`;
+        badge.title = 'Click to fly tactical radar to this hazard location';
+
+        badge.addEventListener('click', () => {
+          flyToHazard(alert);
+        });
+
+        hazardRow.appendChild(badge);
+      });
+
+      hazardPanel.appendChild(hazardRow);
+    }
+
+    msgEntry.appendChild(intelToggleBar);
+    if (sourcePanel) msgEntry.appendChild(sourcePanel);
+    if (hazardPanel) msgEntry.appendChild(hazardPanel);
   }
 
   elements.chatStream.appendChild(msgEntry);
@@ -1017,12 +1171,13 @@ async function executeChatRequest(queryText) {
     state.lastWeatherData = data.weather;
     state.currentLocation = data.location;
     state.historyData = data.history_data || [];
+    state.currentAlerts = data.alerts || [];
 
     // 1. Render Markdown reply & Source Pills
     appendBotMessage(data);
 
-    // 2. Map the first paragraph to scrolling Ticker Tape
-    bindTickerTape(data.bot_reply);
+    // 2. Map the first paragraph to scrolling Ticker Tape (with lightning check)
+    bindTickerTape(data.bot_reply, data.alerts);
 
     // 3. Bind Telemetry Widgets
     bindTelemetryWidgets(data.weather, data.alerts);
@@ -1054,7 +1209,22 @@ async function executeChatRequest(queryText) {
   }
 }
 
-// ── 9. Form Submission & Quick Prompts ───────────────────────────────────────
+// ── 9. Form Submission & Universal Intent Quick Queries ──────────────────────
+function sendQuickQuery(queryText) {
+  if (!queryText) return;
+  const cleanQuery = queryText.trim().replace(/^>\s*/, '');
+  if (!cleanQuery) return;
+
+  // 1. Clear the chat input
+  if (elements.queryInput) {
+    elements.queryInput.value = '';
+  }
+
+  // 2. Display selected question in USER > log & 3. Trigger full AI query pipeline
+  executeChatRequest(cleanQuery);
+}
+window.sendQuickQuery = sendQuickQuery;
+
 if (elements.commandForm) {
   elements.commandForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1063,12 +1233,11 @@ if (elements.commandForm) {
   });
 }
 
+// Fallback delegation for quick prompt buttons (in case inline onclick is prevented)
 document.querySelectorAll('.quick-prompt-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const prompt = btn.getAttribute('data-prompt');
-    if (prompt) {
-      elements.queryInput.value = prompt;
-      executeChatRequest(prompt);
+  btn.addEventListener('click', (e) => {
+    if (!btn.getAttribute('onclick')) {
+      sendQuickQuery(btn.textContent);
     }
   });
 });
@@ -1275,8 +1444,8 @@ function setupVoiceInput() {
           // 3. Render Markdown reply & Source Pills (with embedded audio player)
           const botMsgEl = appendBotMessage(data);
 
-          // 4. Map the first paragraph to scrolling Ticker Tape
-          bindTickerTape(data.bot_reply);
+          // 4. Map the first paragraph to scrolling Ticker Tape (with lightning check)
+          bindTickerTape(data.bot_reply, data.alerts);
 
           // 5. Bind Telemetry Widgets
           bindTelemetryWidgets(data.weather, data.alerts);
@@ -1394,8 +1563,8 @@ async function sendSystemProbe(isInitial = false) {
     // 2. Instantly populate Big Digits Telemetry Widgets (Temperature, Humidity, Wind, Active Hazards)
     bindTelemetryWidgets(data.weather, data.alerts);
 
-    // 3. Instantly populate Top Marquee Ticker Tape with Synoptic Overview
-    bindTickerTape(data.bot_reply);
+    // 3. Instantly populate Top Marquee Ticker Tape with Synoptic Overview (with lightning check)
+    bindTickerTape(data.bot_reply, data.alerts);
 
     // 4. Update Crisis Mode if critical alerts exist or temp > 45 / wind > 75
     updateEmergencyUIState(data.alerts, data.weather);
@@ -1543,6 +1712,8 @@ function applyLocalization(langCode) {
     if (translated) {
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
         el.setAttribute('placeholder', translated);
+      } else if (el.classList.contains('intel-toggle-btn')) {
+        updateIntelToggleText(el, translated);
       } else {
         el.textContent = translated;
       }

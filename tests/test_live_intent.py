@@ -5,10 +5,12 @@ import asyncio
 import json
 import sys
 import httpx
+import pytest
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+@pytest.mark.asyncio
 async def test_live():
     print("=" * 60)
     print("TESTING LIVE /chat ENDPOINT FOR INTENT-FIRST RESPONSES")

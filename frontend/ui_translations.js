@@ -35,6 +35,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> Kolkata Weather & Alerts",
     QUICK_NDMA: "> NDMA Flood SOPs",
     QUICK_DELHI: "> Delhi NCR Advisory",
+    QUERY_SAFETY: "Is it safe to go out right now?",
+    QUERY_RAIN: "Will it rain in the next hour?",
+    QUERY_HISTORY: "How was the weather yesterday?",
+    QUERY_CROP: "Give me today's crop advisory.",
+    BTN_SOURCES: "SOURCES // INTEL",
+    BTN_HAZARDS: "RADAR HAZARDS",
   },
   hi: {
     SYNOPTIC_OVERVIEW: "सिनॉप्टिक अवलोकन >>",
@@ -66,6 +72,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> कोलकाता मौसम और अलर्ट",
     QUICK_NDMA: "> एनडीएमए बाढ़ एसओपी",
     QUICK_DELHI: "> दिल्ली एनसीआर परामर्श",
+    QUERY_SAFETY: "क्या अभी बाहर जाना सुरक्षित है?",
+    QUERY_RAIN: "क्या अगले एक घंटे में बारिश होगी?",
+    QUERY_HISTORY: "कल मौसम कैसा था?",
+    QUERY_CROP: "आज की कृषि मौसम सलाह (Agromet) दें।",
+    BTN_SOURCES: "स्रोत // डेटा (SOURCES)",
+    BTN_HAZARDS: "रडार खतरे (RADAR HAZARDS)",
   },
   bn: {
     SYNOPTIC_OVERVIEW: "সিনোপটিক ওভারভিউ >>",
@@ -97,6 +109,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> কলকাতা আবহাওয়া ও সতর্কতা",
     QUICK_NDMA: "> এনডিএমএ বন্যা এসওপি",
     QUICK_DELHI: "> দিল্লি এনসিআর পরামর্শ",
+    QUERY_SAFETY: "এখন কি বাইরে যাওয়া নিরাপদ?",
+    QUERY_RAIN: "আগামী এক ঘণ্টায় কি বৃষ্টি হবে?",
+    QUERY_HISTORY: "গতকাল আবহাওয়া কেমন ছিল?",
+    QUERY_CROP: "আজকের কৃষি আবহাওয়া (Agromet) পরামর্শ দিন।",
+    BTN_SOURCES: "উৎস // ইন্টেল (SOURCES)",
+    BTN_HAZARDS: "রাডার বিপদ (RADAR HAZARDS)",
   },
   ta: {
     SYNOPTIC_OVERVIEW: "சுருக்கமான கண்ணோட்டம் >>",
@@ -128,6 +146,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> கொல்கத்தா வானிலை எச்சரிக்கை",
     QUICK_NDMA: "> பேரிடர் மேலாண்மை வழிகாட்டுதல்",
     QUICK_DELHI: "> டெல்லி வானிலை ஆலோசனை",
+    QUERY_SAFETY: "இப்போது வெளியே செல்வது பாதுகாப்பானதா?",
+    QUERY_RAIN: "அடுத்த ஒரு மணி நேரத்தில் மழை பெய்யுமா?",
+    QUERY_HISTORY: "நேற்று வானிலை எப்படி இருந்தது?",
+    QUERY_CROP: "இன்றைய வேளாண் வானிலை (Agromet) ஆலோசனையை வழங்கவும்.",
+    BTN_SOURCES: "ஆதாரங்கள் // தகவல் (SOURCES)",
+    BTN_HAZARDS: "ரேடார் ஆபத்துகள் (RADAR HAZARDS)",
   },
   te: {
     SYNOPTIC_OVERVIEW: "సినాప్టిక్ అవలోకనం >>",
@@ -159,6 +183,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> కోల్‌కతా వాతావరణ హెచ్చరికలు",
     QUICK_NDMA: "> ఎన్‌డిఎమ్‌ఎ వరద నిబంధనలు",
     QUICK_DELHI: "> ఢిల్లీ వాతావరణ సమాచారం",
+    QUERY_SAFETY: "ఇప్పుడు బయటకు వెళ్లడం సురక్షితమేనా?",
+    QUERY_RAIN: "రాబోయే గంటలో వర్షం పడుతుందా?",
+    QUERY_HISTORY: "నిన్న వాతావరణం ఎలా ఉండింది?",
+    QUERY_CROP: "నేటి వ్యవసాయ వాతావరణ (Agromet) సలహా ఇవ్వండి.",
+    BTN_SOURCES: "మూలాలు // ఇంటెల్ (SOURCES)",
+    BTN_HAZARDS: "రాడార్ ప్రమాదాలు (RADAR HAZARDS)",
   },
   mr: {
     SYNOPTIC_OVERVIEW: "सिनॉप्टिक विहंगावलोकन >>",
@@ -190,6 +220,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> कोलकाता हवामान आणि इशारे",
     QUICK_NDMA: "> पूर आपत्ती सुरक्षा नियम",
     QUICK_DELHI: "> दिल्ली एनसीआर सल्लागार",
+    QUERY_SAFETY: "आत्ता बाहेर पडणे सुरक्षित आहे का?",
+    QUERY_RAIN: "पुढील एका तासात पाऊस पडेल का?",
+    QUERY_HISTORY: "काल हवामान कसे होते?",
+    QUERY_CROP: "आजचा कृषी हवामान (Agromet) सल्ला द्या.",
+    BTN_SOURCES: "स्रोत // माहिती (SOURCES)",
+    BTN_HAZARDS: "रडार धोके (RADAR HAZARDS)",
   },
   gu: {
     SYNOPTIC_OVERVIEW: "સિનોપ્ટિક વિહંગાવલોકન >>",
@@ -221,6 +257,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> કોલકાતા હવામાન અને ચેતવણી",
     QUICK_NDMA: "> પૂર આપત્તિ માર્ગદર્શિકા",
     QUICK_DELHI: "> દિલ્હી હવામાન સલાહ",
+    QUERY_SAFETY: "શું અત્યારે બહાર જવું સલામત છે?",
+    QUERY_RAIN: "શું આગામી એક કલાકમાં વરસાદ પડશે?",
+    QUERY_HISTORY: "ગઈકાલે હવામાન કેવું હતું?",
+    QUERY_CROP: "આજની કૃષિ હવામાન (Agromet) સલાહ આપો.",
+    BTN_SOURCES: "સ્ત્રોત // ઇન્ટેલ (SOURCES)",
+    BTN_HAZARDS: "રડાર જોખમો (RADAR HAZARDS)",
   },
   kn: {
     SYNOPTIC_OVERVIEW: "ಸಿನಾಪ್ಟಿಕ್ ಅವಲೋಕನ >>",
@@ -252,6 +294,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> ಕೋಲ್ಕತ್ತಾ ಹವಾಮಾನ ಎಚ್ಚರಿಕೆ",
     QUICK_NDMA: "> ಪ್ರವಾಹ ಸುರಕ್ಷತಾ ನಿಯಮಗಳು",
     QUICK_DELHI: "> ದೆಹಲಿ ಹವಾಮಾನ ಸಲಹೆ",
+    QUERY_SAFETY: "ಈಗ ಹೊರಗೆ ಹೋಗುವುದು ಸುರಕ್ಷಿತವೇ?",
+    QUERY_RAIN: "ಮುಂದಿನ ಒಂದು ಗಂಟೆಯಲ್ಲಿ ಮಳೆ ಬರುತ್ತದೆಯೇ?",
+    QUERY_HISTORY: "ನಿನ್ನೆ ಹವಾಮಾನ ಹೇಗಿತ್ತು?",
+    QUERY_CROP: "ಇಂದಿನ ಕೃಷಿ ಹವಾಮಾನ (Agromet) ಸಲಹೆ ನೀಡಿ.",
+    BTN_SOURCES: "ಮೂಲಗಳು // ಇಂಟೆಲ್ (SOURCES)",
+    BTN_HAZARDS: "ರೇಡಾರ್ ಅಪಾಯಗಳು (RADAR HAZARDS)",
   },
   ml: {
     SYNOPTIC_OVERVIEW: "സിനോപ്റ്റിക് അവലോകനം >>",
@@ -283,6 +331,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> കൊൽക്കത്ത കാലാവസ്ഥ മുന്നറിയിപ്പുകൾ",
     QUICK_NDMA: "> വെള്ളപ്പൊക്ക ദുരന്ത നിവാരണ നിയമാവലി",
     QUICK_DELHI: "> ഡൽഹി കാലാവസ്ഥാ ഉപദേശം",
+    QUERY_SAFETY: "ഇപ്പോൾ പുറത്തുപോകുന്നത് സുരക്ഷിതമാണോ?",
+    QUERY_RAIN: "അടുത്ത ഒരു മണിക്കൂറിൽ മഴ പെയ്യുമോ?",
+    QUERY_HISTORY: "ഇന്നലെ കാലാവസ്ഥ എങ്ങനെയായിരുന്നു?",
+    QUERY_CROP: "ഇന്നത്തെ കാർഷിക കാലാവസ്ഥാ (Agromet) ഉപദേശം നൽകുക.",
+    BTN_SOURCES: "ഉറവിടങ്ങൾ // ഇന്റൽ (SOURCES)",
+    BTN_HAZARDS: "റഡാർ അപകടങ്ങൾ (RADAR HAZARDS)",
   },
   pa: {
     SYNOPTIC_OVERVIEW: "ਸਿਨੌਪਟਿਕ ਸੰਖੇਪ >>",
@@ -314,6 +368,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> ਕੋਲਕਾਤਾ ਮੌਸਮ ਅਤੇ ਚੇਤਾਵਨੀਆਂ",
     QUICK_NDMA: "> ਹੜ੍ਹ ਆਫ਼ਤ ਸੁਰੱਖਿਆ ਨਿਯਮ",
     QUICK_DELHI: "> ਦਿੱਲੀ ਮੌਸਮ ਸਲਾਹਕਾਰ",
+    QUERY_SAFETY: "ਕੀ ਹੁਣ ਬਾਹਰ ਜਾਣਾ ਸੁਰੱਖਿਅਤ ਹੈ?",
+    QUERY_RAIN: "ਕੀ ਅਗਲੇ ਇੱਕ ਘੰਟੇ ਵਿੱਚ ਮੀਂਹ ਪਵੇਗਾ?",
+    QUERY_HISTORY: "ਕੱਲ੍ਹ ਮੌਸਮ ਕਿਹੋ ਜਿਹਾ ਸੀ?",
+    QUERY_CROP: "ਅੱਜ ਦੀ ਖੇਤੀਬਾੜੀ ਮੌਸਮ (Agromet) ਸਲਾਹ ਦਿਓ।",
+    BTN_SOURCES: "ਸਰੋਤ // ਇੰਟੈਲ (SOURCES)",
+    BTN_HAZARDS: "ਰਾਡਾਰ ਖ਼ਤਰੇ (RADAR HAZARDS)",
   },
   or: {
     SYNOPTIC_OVERVIEW: "ସିନପ୍ଟିକ୍ ସମୀକ୍ଷା >>",
@@ -345,6 +405,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> କୋଲକାତା ପାଣିପାଗ ଏବଂ ଚେତାବନୀ",
     QUICK_NDMA: "> ବନ୍ୟା ସୁରକ୍ଷା ନିର୍ଦ୍ଦେଶାବଳୀ",
     QUICK_DELHI: "> ଦିଲ୍ଲୀ ପାଣିପାଗ ପରାମର୍ଶ",
+    QUERY_SAFETY: "ବର୍ତ୍ତମାନ ବାହାରକୁ ଯିବା ନିରାପଦ କି?",
+    QUERY_RAIN: "ଆଗାମୀ ଏକ ଘଣ୍ଟା ମଧ୍ୟରେ ବର୍ଷା ହେବ କି?",
+    QUERY_HISTORY: "ଗତକାଲି ପାଣିପାଗ କିପରି ଥିଲା?",
+    QUERY_CROP: "ଆଜିର କୃଷି ପାଣିପାଗ (Agromet) ପରାମର୍ଶ ଦିଅନ୍ତୁ।",
+    BTN_SOURCES: "ଉତ୍ସ // ଇଣ୍ଟେଲ (SOURCES)",
+    BTN_HAZARDS: "ରାଡାର୍ ବିପଦ (RADAR HAZARDS)",
   },
   ur: {
     SYNOPTIC_OVERVIEW: "موسمی جائزہ >>",
@@ -376,6 +442,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> کولکتہ کا موسم اور الرٹ",
     QUICK_NDMA: "> سیلاب سے بچاؤ کے رہنما اصول",
     QUICK_DELHI: "> دہلی این سی آر ایڈوائزری",
+    QUERY_SAFETY: "کیا ابھی باہر جانا محفوظ ہے؟",
+    QUERY_RAIN: "کیا اگلے ایک گھنٹے میں بارش ہوگی؟",
+    QUERY_HISTORY: "کل موسم کیسا تھا؟",
+    QUERY_CROP: "آج کا زرعی موسمیاتی (Agromet) مشورہ فراہم کریں۔",
+    BTN_SOURCES: "ذرائع // انٹیل (SOURCES)",
+    BTN_HAZARDS: "ریڈار خطرات (RADAR HAZARDS)",
   },
   as: {
     SYNOPTIC_OVERVIEW: "চিনপটিক অৱলোকন >>",
@@ -407,6 +479,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> কলকাতাৰ বতৰ আৰু সতৰ্কতা",
     QUICK_NDMA: "> বানপানীৰ নিৰাপত্তা বিধি",
     QUICK_DELHI: "> দিল্লী বতৰৰ পৰামৰ্শ",
+    QUERY_SAFETY: "এতিয়া বাহিৰলৈ ওলোৱাটো সুৰক্ষিতনে?",
+    QUERY_RAIN: "অহা এক ঘণ্টাত বৰষুণ হ’বনে?",
+    QUERY_HISTORY: "কালি বতৰ কেনেকুৱা আছিল?",
+    QUERY_CROP: "আজিৰ কৃষি বতৰ (Agromet) পৰামৰ্শ দিয়ক।",
+    BTN_SOURCES: "উৎস // তথ্য (SOURCES)",
+    BTN_HAZARDS: "ৰাডাৰ বিপদ (RADAR HAZARDS)",
   },
   sa: {
     SYNOPTIC_OVERVIEW: "synoptic सिंहावलोकनम् >>",
@@ -438,6 +516,12 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> कोलकाता ऋतुः सतर्कता च",
     QUICK_NDMA: "> आपदा सुरक्षा निर्देशाः",
     QUICK_DELHI: "> दिल्ली परामर्शः",
+    QUERY_SAFETY: "किम् अधुना बहिर्गमनं सुरक्षितम् अस्ति?",
+    QUERY_RAIN: "किम् अग्रिमे एकहोरायां वृष्टिः भविष्यति?",
+    QUERY_HISTORY: "ह्यः ऋतुः कीदृशः आसीत्?",
+    QUERY_CROP: "अद्यतनं कृषि-ऋतु-परामर्शं (Agromet) ददातु।",
+    BTN_SOURCES: "स्रोतांसि // सूचना (SOURCES)",
+    BTN_HAZARDS: "राडार आपदः (RADAR HAZARDS)",
   },
   ne: {
     SYNOPTIC_OVERVIEW: "सिनोप्टिक सिंहावलोकन >>",
@@ -469,13 +553,23 @@ const UI_LOCALE = {
     QUICK_KOLKATA: "> कोलकाता मौसम र चेतावनी",
     QUICK_NDMA: "> विपद् सुरक्षा निर्देशिका",
     QUICK_DELHI: "> दिल्ली मौसम सल्लाह",
+    QUERY_SAFETY: "के अहिले बाहिर निस्कनु सुरक्षित छ?",
+    QUERY_RAIN: "के आगामी एक घण्टामा वर्षा हुनेछ?",
+    QUERY_HISTORY: "हिजो मौसम कस्तो थियो?",
+    QUERY_CROP: "आजको कृषि मौसम (Agromet) सल्लाह दिनुहोस्।",
+    BTN_SOURCES: "स्रोतहरू // इन्टेल (SOURCES)",
+    BTN_HAZARDS: "राडार जोखिमहरू (RADAR HAZARDS)",
   }
 };
 
-// Expose globally for vanilla browser scripts
+// Expose globally for vanilla browser scripts and node
 if (typeof window !== "undefined") {
   window.UI_LOCALE = UI_LOCALE;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.UI_LOCALE = UI_LOCALE;
 }
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { UI_LOCALE };
 }
+

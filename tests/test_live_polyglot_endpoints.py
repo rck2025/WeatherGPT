@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 import edge_tts
 import httpx
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -23,6 +24,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from backend.services.language.resolver import validate_script_purity, detect_dominant_script
 
 
+@pytest.mark.asyncio
 async def test_text_polyglot_chat():
     print("\n--- [TEST 1] POST /chat with Regional Languages ---")
     async with httpx.AsyncClient(timeout=120.0) as client:
@@ -65,6 +67,7 @@ async def test_text_polyglot_chat():
     print("PASS: POST /chat generates sovereign native responses.")
 
 
+@pytest.mark.asyncio
 async def test_voice_polyglot_process():
     print("\n--- [TEST 2] POST /voice/process with Tamil Voice ---")
     phrase_ta = "சென்னையில் மழை பெய்யுமா?"
@@ -97,6 +100,7 @@ async def test_voice_polyglot_process():
     print("PASS: Tamil Voice-to-Voice pipeline successfully executed.")
 
 
+@pytest.mark.asyncio
 async def test_signal_noise_voice_rejection():
     print("\n--- [TEST 3] Noise Rejection Guard (SYS_VOICE > SIGNAL_NOISE) ---")
     # Synthesize English phrase "Thank you for watching this video"

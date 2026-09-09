@@ -13,7 +13,6 @@ from backend.schemas import (
     WeatherResponse,
 )
 from backend.services.rag.service import WeatherGPTBrain
-from backend.services.rag.vector_store import is_ingested
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +89,8 @@ class RAGService:
                 alerts=self._as_alerts(result.get("alerts", alerts)),
                 sources=self._as_sources(result.get("sources", [])),
                 synoptic_overlays=self._as_overlays(result.get("synoptic_overlays", [])),
+                confidence_score=float(result.get("confidence_score", 1.0)),
+                model_disagreement=bool(result.get("model_disagreement", False)),
             )
         except Exception:
             logger.exception("RAG service failed.")
@@ -100,15 +101,37 @@ class RAGService:
                 alerts=alerts,
                 sources=[],
                 synoptic_overlays=[],
+                confidence_score=1.0,
+                model_disagreement=False,
             )
+
+    @property
+    def mock_aws_rain(self) -> float | None:
+        return getattr(self.brain, "mock_aws_rain", None)
+
+    @mock_aws_rain.setter
+    def mock_aws_rain(self, val: float | None) -> None:
+        self.brain.mock_aws_rain = val
+
+    @property
+    def mock_station_name(self) -> str | None:
+        return getattr(self.brain, "mock_station_name", None)
+
+    @mock_station_name.setter
+    def mock_station_name(self, val: str | None) -> None:
+        self.brain.mock_station_name = val
+
+    @property
+    def mock_lightning_strikes(self) -> int | None:
+        return getattr(self.brain, "mock_lightning_strikes", None)
+
+    @mock_lightning_strikes.setter
+    def mock_lightning_strikes(self, val: int | None) -> None:
+        self.brain.mock_lightning_strikes = val
 
     def ingest_documents(self) -> int:
         """Ingest the PDFs in backend/data and return the processed file count."""
         return self.brain.ingest_bulletins()
-
-    def bulletins_are_ingested(self) -> bool:
-        """Check the durable marker left after a successful ingestion run."""
-        return is_ingested(self.brain.db_path)
 
 
 rag_service = RAGService()
