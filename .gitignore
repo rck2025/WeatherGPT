@@ -9,6 +9,16 @@ venv/
 # Environment variables / secrets
 .env
 .env.*
+*.json
+!package.json
+!package-lock.json
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/.oxlintrc.json
+!backend/data/source_registry.json
+*-key.json
+gee-key.json
+backend/gee-key.json
 
 # IDE
 .idea/
