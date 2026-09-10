@@ -40,6 +40,7 @@ class CurrentWeatherData(BaseModel):
     precipitation: float | None = None
     wind_speed: float | None = None
     weather_code: int | None = None
+    visibility: float | None = None
 
 
 class HourlyForecast(BaseModel):
@@ -113,6 +114,7 @@ class ChatRequest(BaseModel):
     channel: str = "web"
     scientific_mode: bool = False
     history: list[dict] = []
+    mode: str = "standard"
 
 
 # -------------------------

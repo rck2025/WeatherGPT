@@ -2089,3 +2089,88 @@ body.sat-mode .user-beacon-core,
   justify-content: space-between;
 }
 
+/* ==========================================================================
+   AVIATION MODE & TACTICAL OPERATIONAL CONTEXT STYLES
+   ========================================================================== */
+
+:root {
+  --neon-green: #00FF41;
+}
+
+.mode-toggle-btn {
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid var(--terminal-border);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mode-toggle-btn:hover {
+  background: rgba(0, 255, 65, 0.2);
+  border-color: var(--terminal-border-bright);
+  box-shadow: 0 0 10px var(--terminal-green-glow);
+}
+
+.mode-toggle-btn.is-aviation {
+  background: rgba(0, 229, 255, 0.15) !important;
+  border-color: #00E5FF !important;
+  color: #00E5FF !important;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.45) !important;
+}
+
+/* Aviation Skin: Turns terminal accents to high-visibility Aviation Cyan (#00E5FF) */
+body.mode-aviation {
+  --neon-green: #00E5FF !important;
+  --terminal-green: #00E5FF !important;
+  --terminal-green-bright: #38bdf8 !important;
+  --terminal-green-dim: #0284c7 !important;
+  --terminal-green-glow: rgba(0, 229, 255, 0.35) !important;
+  --terminal-border: rgba(0, 229, 255, 0.35) !important;
+  --terminal-border-bright: #00E5FF !important;
+  --text-primary: #e0f7fa !important;
+  --text-secondary: #80deea !important;
+  --text-muted: #4dd0e1 !important;
+}
+
+body.mode-aviation .brand-badge {
+  background: #00E5FF !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.5) !important;
+}
+
+body.mode-aviation #systemIndicator {
+  background-color: #00E5FF !important;
+  box-shadow: 0 0 10px #00E5FF !important;
+}
+
+body.mode-aviation .execute-btn {
+  background: #00E5FF !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.4) !important;
+}
+
+body.mode-aviation .telemetry-card#telemetryCard1 {
+  border-color: #00E5FF !important;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.25) !important;
+}
+
+body.mode-aviation .telemetry-card#telemetryCard1 .telemetry-card-header span:first-child {
+  color: #00E5FF !important;
+}
+
+body.mode-aviation .telemetry-card#telemetryCard1 #telemetryCard1Badge {
+  background: rgba(0, 229, 255, 0.2) !important;
+  border: 1px solid #00E5FF !important;
+  color: #00E5FF !important;
+}
+

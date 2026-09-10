@@ -152,6 +152,112 @@ INSTRUCTIONS:
 OFFICIAL RESPONSE:"""
 
 # ------------------------------------------------------------------
+# AVIATION ATC & TACTICAL FLIGHT BRIEFING TEMPLATE
+# ------------------------------------------------------------------
+aviation_template = """[ROLE: SENIOR AIR TRAFFIC CONTROLLER & FLIGHT METEOROLOGICAL OFFICER]
+You are WeatherGPT in TACTICAL AVIATION MODE.
+You provide official aeronautical meteorological briefings (METAR / TAF / SIGMET format).
+
+ATC OPERATIONAL DIRECTIVES:
+1. HARD-LOCK PERSONA: You MUST respond as an Air Traffic Control (ATC) Flight Dispatcher / Aerodrome Meteorologist to EVERY query, regardless of whether the user explicitly mentions flying.
+2. FLIGHT RULES CLASSIFICATION:
+   - Determine and state the flight category:
+     * VFR (Visual Flight Rules): Visibility >= 5.0 km AND Cloud Ceiling >= 3,000 ft (no low cloud cover / stable).
+     * MVFR (Marginal VFR): Visibility 3.0 - 5.0 km OR Ceiling 1,000 - 3,000 ft.
+     * IFR (Instrument Flight Rules): Visibility < 3.0 km OR Ceiling < 1,000 ft / active thunderstorm / CB clouds.
+3. PRIMARY AERODROME CONTEXT:
+   - VISIBILITY: Primary metric (reported in Kilometers and Nautical Miles).
+   - CLOUD CEILING / COVER: From weather_code and cloud cover (FEW, SCT, BKN, OVC, CAVOK).
+   - SURFACE WIND: Direction & Velocity in Knots (kt) or km/h, crosswind/gust hazard analysis.
+   - CONVECTIVE HAZARDS: Thunderstorms, Cumulonimbus (CB), lightning, microbursts, wind shear, icing.
+4. STYLE & TONE:
+   - Begin with a METAR-style SITUATIONAL STATUS (e.g. "METAR REPORT: VFR conditions stable." or "TACTICAL FLIGHT BRIEFING:").
+   - Crisp, military/aviation standard, safety-critical, authoritative.
+   - Example 1 (Casual "How's the day?"):
+     "METAR REPORT: VFR conditions stable. Visibility {vis_km:.1f} km ({vis_nm:.1f} NM). Surface winds at {wind_speed_val:.0f} km/h. Cloud ceiling clear. No convective hazards for light aircraft."
+   - Example 2 ("Is it safe to fly?"):
+     "TACTICAL FLIGHT BRIEFING: Conditions are {flight_rules_short}. Visibility is {vis_km:.1f} km ({vis_nm:.1f} NM). Surface winds at {wind_speed_val:.0f} km/h. [Analyze turbulence, cloud ceiling, and convective hazards]."
+
+{conversational_instructions}
+
+{conversation_history}
+
+USER_QUESTION: {question}
+
+AERODROME TELEMETRY (PRIMARY FLIGHT DATA):
+{aviation_telemetry}
+
+OBSERVATIONAL RADAR & HAZARDS:
+{radar_data}
+
+HYPERLOCAL_DATA: {hyperlocal_context}
+
+INSTRUCTIONS:
+- Directly answer the specific USER_QUESTION from an aeronautical perspective.
+- Highlight Visibility, Cloud Ceiling, Wind Shear, and Flight Rules (VFR / MVFR / IFR).
+{linguistic_constraint}
+
+OFFICIAL ATC BRIEFING:"""
+
+
+def determine_flight_rules(vis_km: float, weather_code: int | None = None) -> str:
+    """Categorize aerodrome conditions into VFR, MVFR, or IFR based on visibility and weather."""
+    if weather_code in (95, 96, 99):
+        return "IFR"
+    if vis_km >= 5.0:
+        return "VFR"
+    elif vis_km >= 3.0:
+        return "MVFR"
+    else:
+        return "IFR"
+
+
+def get_ceiling_description(weather_code: int | None) -> str:
+    """Translate WMO weather code to standard aviation cloud ceiling terms."""
+    if weather_code in (0, 1):
+        return "SKC / NSC (Sky Clear / No Significant Cloud, Ceiling > 10,000 ft AGL)"
+    elif weather_code in (2, 3):
+        return "FEW / SCT (Scattered Clouds, Base approx 3,500 ft AGL)"
+    elif weather_code in (45, 48):
+        return "OVC (Overcast / Fog Layer, Low Ceiling < 500 ft AGL)"
+    elif weather_code in (51, 53, 55, 61, 63, 65):
+        return "BKN / OVC (Precipitation Stratus, Base approx 1,500 - 2,500 ft AGL)"
+    elif weather_code in (95, 96, 99):
+        return "CB / TCU (Cumulonimbus Convective Cloud-Top, Severe Turbulence & Downdrafts)"
+    else:
+        return "SCT (Ceiling approx 5,000 ft AGL)"
+
+
+def build_atc_flight_briefing(
+    location: Location | None,
+    vis_km: float,
+    vis_nm: float,
+    wind_kt: float,
+    category: str,
+    weather_code: int | None,
+    ceiling_desc: str,
+    hazards: list[Any] | None = None,
+) -> str:
+    """Generate a crisp, tactical METAR / ATC flight briefing."""
+    station = (location.city if location and location.city else "AERODROME SECTOR").upper()
+    coords = f"[{location.latitude:.2f}°N, {location.longitude:.2f}°E]" if location and location.latitude else "[TACTICAL SECTOR]"
+
+    is_convective = (category == "IFR" or (weather_code in (95, 96, 99)))
+    if is_convective:
+        hazard_note = "CAUTION: Convective cells / wind shear hazard. Instrument flight rules mandatory."
+    else:
+        hazard_note = "Stable flight envelope. No convective hazards for light aircraft."
+
+    return (
+        f"METAR REPORT: {category} conditions stable for {station} {coords}.\n\n"
+        f"• Flight Visibility: {vis_km:.1f} km ({vis_nm:.1f} NM)\n"
+        f"• Surface Wind: {wind_kt:.0f} kt\n"
+        f"• Cloud Ceiling: {ceiling_desc}\n"
+        f"• Operational Advisory: {hazard_note}"
+    )
+
+
+# ------------------------------------------------------------------
 # HISTORICAL ARCHIVE TEMPLATE (Hard Date Locking)
 # ------------------------------------------------------------------
 historical_template = """[SYSTEM: MOES WEATHER-GPT ARCHITECTURE // HISTORICAL ARCHIVE PROTOCOL]
@@ -813,9 +919,13 @@ class WeatherGPTBrain:
             "Please seek immediate shelter and adhere to official safety guidelines."
         )
 
-        # Task 2.1: Small Talk / Pleasantries Intent
+        # Check operational mode early
+        operational_mode = getattr(request, "mode", "standard") or "standard"
+        is_aviation_mode = (str(operational_mode).lower() == "aviation")
+
+        # Task 2.1: Small Talk / Pleasantries Intent (Bypassed in Aviation Mode)
         is_small_talk_flag, small_talk_kind = is_small_talk(request.query)
-        if is_small_talk_flag:
+        if is_small_talk_flag and not is_aviation_mode:
             if small_talk_kind == "greeting":
                 reply = "Hello! I am WeatherGPT, your meteorological assistant. How can I help you with weather updates or disaster safety today?"
             elif small_talk_kind == "thanks":
@@ -835,7 +945,7 @@ class WeatherGPTBrain:
                 "model_disagreement": False,
             }
 
-        # Task 2.2: Ambiguity Handling Intent
+        # Task 2.2: Ambiguity Handling Intent (Bypassed in Aviation Mode)
         query_city, _ = extract_city_from_text(request.query)
         history_city = None
         for msg in reversed(raw_history[-6:]):
@@ -856,7 +966,7 @@ class WeatherGPTBrain:
             )
         )
 
-        if is_vague_weather_query(request.query) and is_loc_unspecified:
+        if is_vague_weather_query(request.query) and is_loc_unspecified and not is_aviation_mode:
             clarify_reply = "Which city are you asking about? Please specify your location so I can check the latest radar and weather forecast for you."
             if has_severe_warning:
                 clarify_reply = f"{warning_interjection}\n\n{clarify_reply}"
@@ -890,7 +1000,7 @@ class WeatherGPTBrain:
             or history_city is not None
         )
 
-        if not (has_location or is_weather_query):
+        if not (has_location or is_weather_query or is_aviation_mode):
             return {
                 "bot_reply": (
                     "I am WeatherGPT and can help with weather and "
@@ -1364,8 +1474,70 @@ class WeatherGPTBrain:
         else:
             linguistic_constraint = "COMMUNICATE PROFESSIONALLY: Provide clear, authoritative meteorological briefing in Indian English."
 
+        # Operational Mode Routing (Standard vs Tactical Aviation ATC)
+        operational_mode = getattr(request, "mode", "standard") or "standard"
+        is_aviation_mode = (str(operational_mode).lower() == "aviation")
+
+        vis_m = getattr(weather_data.current, "visibility", None) if (weather_data and weather_data.current) else None
+        if vis_m is None or vis_m <= 0:
+            vis_m = 10000.0
+        vis_km = vis_m / 1000.0
+        vis_nm = vis_km * 0.539957
+
+        wind_spd = float(getattr(weather_data.current, "wind_speed", 12.0) or 12.0) if (weather_data and weather_data.current) else 12.0
+        wind_kt = wind_spd * 0.539957
+
+        temp_c = float(getattr(weather_data.current, "temperature", 28.0) or 28.0) if (weather_data and weather_data.current) else 28.0
+        w_code = int(getattr(weather_data.current, "weather_code", 0) or 0) if (weather_data and weather_data.current) else 0
+
+        is_thunder = (w_code in (95, 96, 99) or consensus_meta.get("lightning_active", False) or consensus_meta.get("aws_rainfall_10min_mm", 0.0) > 5.0)
+
+        if is_thunder or vis_km < 3.0:
+            flight_category = "IFR (Instrument Flight Rules - Low Visibility / Convective Hazard)"
+            flight_rules_short = "IFR"
+        elif vis_km < 5.0:
+            flight_category = "MVFR (Marginal Visual Flight Rules)"
+            flight_rules_short = "MVFR"
+        else:
+            flight_category = "VFR (Visual Flight Rules - Clear & Stable)"
+            flight_rules_short = "VFR"
+
+        aviation_telemetry = (
+            f"• FLIGHT RULES CATEGORY: {flight_category}\n"
+            f"• SURFACE VISIBILITY: {vis_km:.1f} KM ({vis_nm:.1f} NM) [CAVOK: {'YES' if vis_km >= 10.0 and not is_thunder else 'NO'}]\n"
+            f"• SURFACE WIND: {wind_kt:.1f} kt ({wind_spd:.1f} km/h)\n"
+            f"• AERODROME TEMPERATURE: {temp_c:.1f}°C\n"
+            f"• ALTIMETER SETTING / QNH: 1013 hPa\n"
+            f"• CLOUD CEILING / CODE: Code {w_code} ({'CB Convective activity active' if is_thunder else 'Ceiling unrestricted'})\n"
+            f"• RUNWAY / SECTOR: {location.city.upper() if location and location.city else 'TERMINAL CONTROL AREA'}"
+        )
+
+        if is_aviation_mode:
+            sources.insert(
+                0,
+                {
+                    "content": aviation_telemetry,
+                    "source": "Aeronautical Meteorological Service (METAR/TAF)",
+                    "score": 1.0,
+                },
+            )
+
         # ── Step 5: Intent-First Prompt Population (Literal Query Injection) ──
-        if temporal_intent in ("past", "ANY_PAST") or is_minute_level_past:
+        if is_aviation_mode:
+            prompt = aviation_template.format(
+                question=request.query,
+                hyperlocal_context=hyperlocal_context,
+                aviation_telemetry=aviation_telemetry,
+                radar_data=radar_data_text,
+                vis_km=vis_km,
+                vis_nm=vis_nm,
+                wind_speed_val=wind_spd,
+                flight_rules_short=flight_rules_short,
+                conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
+                conversation_history=conversation_history_text,
+                linguistic_constraint=linguistic_constraint,
+            ).strip()
+        elif temporal_intent in ("past", "ANY_PAST") or is_minute_level_past:
             if is_minute_level_past:
                 prompt = past_nowcast_template.format(
                     question=request.query,
@@ -1436,8 +1608,17 @@ class WeatherGPTBrain:
                     exc,
                 )
 
-        # ── Step 5.5: Hyperlocal Direct Answer Enforcement ──
-        if precip_intent in (PRECIP_QUERY_YESNO, PRECIP_QUERY_DURATION) and bot_reply:
+        # ── Step 5.5: Hyperlocal Direct Answer & Aviation Enforcement ──
+        if is_aviation_mode and bot_reply:
+            bot_reply_lower = bot_reply.lower()
+            if not any(term in bot_reply_lower for term in ["metar", "vfr", "ifr", "mvfr", "visibility"]):
+                bot_reply = (
+                    f"METAR REPORT: {flight_rules_short} conditions stable. Visibility {vis_km:.1f} km ({vis_nm:.1f} NM). "
+                    f"Wind {wind_kt:.0f} kt ({wind_spd:.1f} km/h). "
+                    f"{'No convective hazards for light aircraft.' if not is_thunder else 'Caution: convective activity in terminal area.'}\n\n"
+                    f"{bot_reply}"
+                )
+        elif precip_intent in (PRECIP_QUERY_YESNO, PRECIP_QUERY_DURATION) and bot_reply:
             bot_reply_lower = bot_reply.lower()
             if model_disagreement:
                 st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
@@ -1482,6 +1663,26 @@ class WeatherGPTBrain:
             logger.info("Dual-model generation returned empty. Generating intent-first authority briefing.")
             parts = []
             city_label = (location.city if location else None) or "the requested sector"
+
+            if is_aviation_mode:
+                bot_reply = build_atc_flight_briefing(
+                    location=location,
+                    vis_km=vis_km,
+                    vis_nm=vis_nm,
+                    wind_kt=wind_kt,
+                    category=flight_rules_short,
+                    weather_code=w_code,
+                    ceiling_desc=get_ceiling_description(w_code),
+                    hazards=response_alerts,
+                )
+                return {
+                    "bot_reply": bot_reply,
+                    "alerts": response_alerts,
+                    "sources": sources,
+                    "synoptic_overlays": [],
+                    "confidence_score": 0.98,
+                    "model_disagreement": False,
+                }
 
             if temporal_intent in ("past", "ANY_PAST") or is_minute_level_past:
                 if is_minute_level_past:

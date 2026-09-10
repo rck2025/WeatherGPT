@@ -97,6 +97,7 @@ class OpenMeteoService:
                 "precipitation",
                 "wind_speed_10m",
                 "weather_code",
+                "visibility",
             ],
 
             # Fields available in HourlyForecast
@@ -143,6 +144,7 @@ class OpenMeteoService:
                 precipitation=current.get("precipitation"),
                 wind_speed=current.get("wind_speed_10m"),
                 weather_code=current.get("weather_code"),
+                visibility=current.get("visibility"),
             )
 
             # Minutely 15-minute NWP intervals for high-resolution nowcast

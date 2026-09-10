@@ -25,6 +25,7 @@ const state = {
   historyData: [],
   lastWeatherData: null,
   currentLocation: null,
+  operationalMode: 'standard', // 'standard' | 'aviation'
 };
 
 // ── Multi-Turn Conversational Memory (UI State Persistence) ─────────────────
@@ -67,6 +68,10 @@ const elements = {
   closeSourceModalBtn: document.getElementById('closeSourceModalBtn'),
   intervalBtnRow: document.getElementById('intervalBtnRow'),
   radarBadge: document.getElementById('radarBadge'),
+  modeToggleHeader: document.getElementById('mode-toggle-header'),
+  modeToggleMap: document.getElementById('mode-toggle-map'),
+  telemetryCard1Title: document.getElementById('telemetryCard1Title'),
+  telemetryCard1Badge: document.getElementById('telemetryCard1Badge'),
 };
 
 // ── 1. Digital Real-Time Clocks (UTC & IST) ─────────────────────────────────
@@ -1013,20 +1018,112 @@ function bindTickerTape(botReply, alertsData) {
   };
 }
 
-// ── 4. Live Telemetry Widgets (Big Digits) ───────────────────────────────────
+// ── 4. Live Telemetry Widgets (Big Digits & Dynamic Operational Mode) ─────────
+function calculateVisibilityMetrics(weatherData) {
+  const current = weatherData?.current;
+  let visMeters = current?.visibility;
+  if (visMeters == null) {
+    return { visKm: 10.0, visNm: (10.0 * 0.539957).toFixed(1), category: 'VFR' };
+  }
+  const visKm = visMeters > 100 ? (visMeters / 1000) : Number(visMeters);
+  const visNm = (visKm * 0.539957).toFixed(1);
+  let category = 'VFR';
+  if (visKm < 3.0) {
+    category = 'IFR';
+  } else if (visKm < 5.0) {
+    category = 'MVFR';
+  }
+  return { visKm, visNm, category };
+}
+
+function updateTelemetryWidgetForMode(weatherData) {
+  const current = weatherData?.current;
+  const isAviation = state.operationalMode === 'aviation';
+
+  const cardTitle = elements.telemetryCard1Title || document.getElementById('telemetryCard1Title');
+  const cardBadge = elements.telemetryCard1Badge || document.getElementById('telemetryCard1Badge');
+
+  if (isAviation) {
+    if (cardTitle) cardTitle.textContent = '01 // VISIBILITY';
+    if (cardBadge) cardBadge.textContent = 'AERODROME';
+
+    const { visKm, visNm, category } = calculateVisibilityMetrics(weatherData);
+    if (elements.telemetryTemp) {
+      elements.telemetryTemp.textContent = `${visKm.toFixed(1)} KM`;
+    }
+    if (elements.telemetryTempSub) {
+      elements.telemetryTempSub.textContent = `${category} CONDITIONS (${visNm} NM)`;
+    }
+  } else {
+    if (cardTitle) cardTitle.textContent = '01 // DIGITAL TEMPERATURE';
+    if (cardBadge) cardBadge.textContent = 'THERMAL';
+
+    if (current && current.temperature != null) {
+      if (elements.telemetryTemp) elements.telemetryTemp.textContent = `${Number(current.temperature).toFixed(1)}°C`;
+      const feelsLike = current.feels_like != null ? `FEELS LIKE ${Number(current.feels_like).toFixed(1)}°C` : 'REAL-TIME SENSOR';
+      if (elements.telemetryTempSub) elements.telemetryTempSub.textContent = feelsLike;
+    } else {
+      if (elements.telemetryTemp) elements.telemetryTemp.textContent = '--°C';
+      if (elements.telemetryTempSub) elements.telemetryTempSub.textContent = 'AWAITING TELEMETRY';
+    }
+  }
+}
+
+function appendAviationModeNotification() {
+  if (!elements.chatStream) return;
+  const note = document.createElement('div');
+  note.className = 'message-entry system-scientific-notice';
+  note.innerHTML = `
+    <span class="message-prefix" style="color: #00E5FF;">SYS_TACTICAL // AVIATION_MODE_ACTIVE</span>
+    <div class="message-content" style="color: #c0f4ff; font-size: 11px; border-left: 2px solid #00E5FF; padding-left: 8px; margin-top: 4px;">
+      <span style="color: #00E5FF; font-weight: 800;">ATC SOVEREIGN CONTEXT ENGAGED:</span>
+      Operational context shifted to Tactical Flight Briefing. Telemetry calibrated to Aerodrome Visibility (KM/NM) and Flight Rules (VFR/MVFR/IFR).
+      Air Traffic Controller &amp; Flight Meteorological Officer persona hard-locked across all weather queries.
+    </div>
+  `;
+  elements.chatStream.appendChild(note);
+  note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function toggleOperationalMode(forcedMode) {
+  if (forcedMode) {
+    state.operationalMode = forcedMode;
+  } else {
+    state.operationalMode = state.operationalMode === 'standard' ? 'aviation' : 'standard';
+  }
+
+  const isAviation = state.operationalMode === 'aviation';
+  document.body.classList.toggle('mode-aviation', isAviation);
+
+  const headerBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
+  const mapBtn = elements.modeToggleMap || document.getElementById('mode-toggle-map');
+
+  const btnLabel = isAviation ? '[ ✈️ MODE: AVIATION ]' : '[ 🌐 MODE: STANDARD ]';
+
+  [headerBtn, mapBtn].forEach((btn) => {
+    if (!btn) return;
+    btn.textContent = btnLabel;
+    if (isAviation) {
+      btn.classList.add('is-aviation');
+    } else {
+      btn.classList.remove('is-aviation');
+    }
+  });
+
+  // Dynamically swap the telemetry widgets based on mode
+  updateTelemetryWidgetForMode(state.lastWeatherData);
+
+  if (isAviation) {
+    appendAviationModeNotification();
+  }
+}
+window.toggleOperationalMode = toggleOperationalMode;
+
 function bindTelemetryWidgets(weatherData, alertsData) {
   const current = weatherData?.current;
 
-  // Task 2: Big Digits - Map weather.current.temperature and humidity to large widgets
-  // 1. Digital Temperature Display (Big Digits)
-  if (current && current.temperature != null) {
-    elements.telemetryTemp.textContent = `${Number(current.temperature).toFixed(1)}°C`;
-    const feelsLike = current.feels_like != null ? `FEELS LIKE ${Number(current.feels_like).toFixed(1)}°C` : 'REAL-TIME SENSOR';
-    elements.telemetryTempSub.textContent = feelsLike;
-  } else {
-    elements.telemetryTemp.textContent = '--°C';
-    elements.telemetryTempSub.textContent = 'AWAITING TELEMETRY';
-  }
+  // 1. Digital Temperature or Visibility Display (Mode-Aware)
+  updateTelemetryWidgetForMode(weatherData);
 
   // 2. Humidity Gauge (Big Digits & Visual Ratio Bar)
   if (current && current.humidity != null) {
@@ -1060,7 +1157,7 @@ function bindTelemetryWidgets(weatherData, alertsData) {
     elements.telemetryAlertsCount.style.color = '#FF3131';
     elements.telemetryBaroSub.textContent = 'OFFICIAL HAZARDS TRACKED';
   } else {
-    elements.telemetryAlertsCount.style.color = '#00FF41';
+    elements.telemetryAlertsCount.style.color = state.operationalMode === 'aviation' ? '#00E5FF' : '#00FF41';
     elements.telemetryBaroSub.textContent = 'NO ACTIVE WARNINGS';
   }
 }
@@ -1579,7 +1676,7 @@ async function executeChatRequest(queryText) {
 
   const loadingIndicator = appendSystemLoading();
 
-  // Construct request payload strictly matching ChatRequest schema (with conversational history)
+  // Construct request payload strictly matching ChatRequest schema (with conversational history & operational mode)
   const payload = {
     query: queryText,
     language: elements.languageSelect ? elements.languageSelect.value : 'en',
@@ -1587,6 +1684,7 @@ async function executeChatRequest(queryText) {
     location: buildLocationPayload(),
     scientific_mode: state.mapMode === 'sat',
     history: chatHistory.slice(-6),
+    mode: state.operationalMode || 'standard',
   };
 
   // Reset voice mode flag after payload prepared
@@ -2010,6 +2108,7 @@ async function sendSystemProbe(isInitial = false) {
     language: 'en',
     channel: 'web',
     location: buildLocationPayload(),
+    mode: state.operationalMode || 'standard',
   };
 
   try {
@@ -2209,6 +2308,16 @@ function initializeTerminal() {
   setupVoiceInput();
   checkBackendHealth();
   applyLocalization(elements.languageSelect ? elements.languageSelect.value : 'en');
+
+  // Bind Operational Mode Toggles (Standard <-> Aviation)
+  const headerModeBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
+  if (headerModeBtn) {
+    headerModeBtn.addEventListener('click', () => toggleOperationalMode());
+  }
+  const mapModeBtn = elements.modeToggleMap || document.getElementById('mode-toggle-map');
+  if (mapModeBtn) {
+    mapModeBtn.addEventListener('click', () => toggleOperationalMode());
+  }
 
   // Task 1: Immediate System Initialization Pulse with GPS or Fallback
   requestDeviceLocation(() => {

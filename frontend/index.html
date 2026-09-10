@@ -36,6 +36,9 @@
       </div>
 
       <div class="header-status">
+        <button id="mode-toggle-header" type="button" class="mode-toggle-btn" onclick="toggleOperationalMode()" title="Toggle Operational Context: Standard Safety vs Tactical Aviation Briefing">
+          [ <span class="mode-toggle-icon">🌐</span> <span class="mode-toggle-text">MODE: STANDARD</span> ]
+        </button>
         <div class="clock-group">
           <span>UTC: <strong id="utcClock">--:--:--</strong></span>
           <span>IST: <strong id="istClock">--:--:--</strong></span>
@@ -214,6 +217,9 @@
           <div class="panel-header">
             <span>GEOSPATIAL HAZARD OVERLAY</span>
             <div class="map-view-switch-wrap">
+              <button id="mode-toggle-map" type="button" onclick="toggleOperationalMode()" class="mode-toggle-btn" title="Toggle Operational Context: Standard Safety vs Tactical Aviation Briefing">
+                [ <span class="mode-toggle-icon">🌐</span> <span class="mode-toggle-text">MODE: STANDARD</span> ]
+              </button>
               <span class="view-mode-label">VIEW_MODE:</span>
               <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Toggle Tactical Grid / Live Satellite Imagery">
                 RADAR_LITE
@@ -239,11 +245,11 @@
 
         <!-- Telemetry Gauges Grid -->
         <div class="telemetry-grid">
-          <!-- Digital Temperature Display -->
-          <div class="telemetry-card">
+          <!-- Digital Temperature Display (Swappable to Visibility in Aviation Mode) -->
+          <div class="telemetry-card" id="telemetryCard1">
             <div class="telemetry-card-header">
-              <span data-t="TEMPERATURE">01 // DIGITAL TEMPERATURE</span>
-              <span data-t="THERMAL">THERMAL</span>
+              <span data-t="TEMPERATURE" id="telemetryCard1Title">01 // DIGITAL TEMPERATURE</span>
+              <span data-t="THERMAL" id="telemetryCard1Badge">THERMAL</span>
             </div>
             <div class="telemetry-card-body">
               <span class="telemetry-value-large" id="telemetryTemp">--&#176;C</span>
