@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
 
-from backend.schemas import ChatRequest, ChatResponse, FullPipelineResponse, LocationInput, WeatherAlert
+from backend.schemas import ChatRequest, ChatResponse, FullPipelineResponse, Location, LocationInput, WeatherAlert
 from backend.services.language import language_router, language_service
 from backend.services.language._schemas import TranscribeResponse
 from backend.services.location.resolver import location_resolver
@@ -103,6 +103,59 @@ alerts: list[WeatherAlert] = [
 ]
 
 
+def deduplicate_hazard_alerts(alert_list: list[WeatherAlert]) -> list[WeatherAlert]:
+    """
+    Fix 2: One marker per hazard event (Backend Spatial & Priority Deduplication).
+    If a single storm system triggers both a low-pressure alert and an active rainfall/nowcast alert
+    at the same geographic coordinates (< 35km), active precipitation takes precedence as the
+    primary current hazard for that location.
+    """
+    import math
+
+    def dist_km(lat1, lon1, lat2, lon2):
+        if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+            return 999999.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+        return 6371.0 * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+
+    def is_rain_hazard(a: WeatherAlert) -> bool:
+        text = f"{a.title} {a.description}".lower()
+        return any(kw in text for kw in ("rain", "thunderstorm", "squall", "downpour", "precipitation", "cloudburst", "nowcast"))
+
+    # Step 1: Deduplicate identical records by (title, description, source)
+    seen = set()
+    unique_alerts: list[WeatherAlert] = []
+    for a in alert_list:
+        key = (a.title, a.description, a.source)
+        if key not in seen:
+            seen.add(key)
+            unique_alerts.append(a)
+
+    # Step 2: Enforce single-marker-per-hazard geographic deduplication (< 35km)
+    final_alerts: list[WeatherAlert] = []
+    for a in unique_alerts:
+        a_is_rain = is_rain_hazard(a) and not getattr(a, "is_historical", False)
+        conflict_idx = None
+        for idx, existing in enumerate(final_alerts):
+            if dist_km(a.latitude, a.longitude, existing.latitude, existing.longitude) < 35.0:
+                conflict_idx = idx
+                break
+
+        if conflict_idx is None:
+            final_alerts.append(a)
+        else:
+            existing = final_alerts[conflict_idx]
+            existing_is_rain = is_rain_hazard(existing) and not getattr(existing, "is_historical", False)
+            # Active rainfall is the primary current hazard over distant/developing pressure status
+            if a_is_rain and not existing_is_rain:
+                final_alerts[conflict_idx] = a
+            # Otherwise skip redundant stacked hazard for the same coordinate
+
+    return final_alerts
+
+
 def get_active_alerts(location: str | None = None) -> list[WeatherAlert]:
     if not location or not location.strip():
         return list(alerts)
@@ -113,6 +166,7 @@ def get_active_alerts(location: str | None = None) -> list[WeatherAlert]:
         for alert in alerts
         if loc_lower in alert.description.lower() or loc_lower in alert.title.lower()
     ]
+
 
 
 # ------------------------------------------------------------------
@@ -172,11 +226,58 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
                 direction_phrase = "in the previous" if detected_time_offset < 0 else "in the next"
                 english_query = f"{english_query} ({direction_phrase} {abs_mins} minutes)"
 
-        # ── Step 2: location resolution ──
-        location = location_resolver.resolve(request.location)
-        if not location:
+        # ── Step 2: location resolution with Reference Resolution ──
+        from backend.services.rag.service import extract_city_from_text, is_small_talk, is_vague_weather_query
+
+        # Check for small talk / pleasantry intent
+        small_talk_flag, _ = is_small_talk(request.query)
+        if not small_talk_flag and english_query != request.query:
+            small_talk_flag, _ = is_small_talk(english_query)
+
+        # Semantic Reference Resolution: Extract city from query or history
+        detected_city, detected_coords = extract_city_from_text(english_query)
+        if not detected_city and english_query != request.query:
+            detected_city, detected_coords = extract_city_from_text(request.query)
+
+        # Pronoun & Context Resolution ('it', 'there', 'that', 'tomorrow') from preceding turns
+        has_pronoun_ref = (
+            any(re.search(r"\b" + re.escape(w) + r"\b", english_query.lower()) for w in ["there", "it", "that", "that city", "same place", "then", "tomorrow"])
+            or not detected_city
+        )
+        if not detected_city and has_pronoun_ref and getattr(request, "history", None):
+            # Prioritize what the user explicitly asked in preceding turns
+            for past_msg in reversed(request.history[-6:]):
+                if isinstance(past_msg, dict) and past_msg.get("role", "").lower() == "user":
+                    past_content = str(past_msg.get("content", ""))
+                    c_name, c_coords = extract_city_from_text(past_content)
+                    if c_name:
+                        detected_city, detected_coords = c_name, c_coords
+                        break
+            if not detected_city:
+                for past_msg in reversed(request.history[-6:]):
+                    if isinstance(past_msg, dict):
+                        past_content = str(past_msg.get("content", ""))
+                        c_name, c_coords = extract_city_from_text(past_content)
+                        if c_name:
+                            detected_city, detected_coords = c_name, c_coords
+                            break
+
+        if detected_city and detected_coords:
+            location = Location(
+                latitude=detected_coords[0],
+                longitude=detected_coords[1],
+                city=detected_city.title(),
+                country="India",
+                timezone="Asia/Kolkata",
+            )
+        else:
+            location = location_resolver.resolve(request.location)
+
+        if not location and small_talk_flag:
+            location = Location(latitude=22.5726, longitude=88.3639, city="Regional Sector", timezone="Asia/Kolkata")
+        elif not location:
             return ChatResponse(
-                bot_reply="I need your location to provide weather information.",
+                bot_reply="Which city are you asking about? Please specify your location so I can check the latest radar and weather forecast for you.",
                 alerts=get_realtime_hazards(),
             )
 
@@ -189,15 +290,7 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
         if english_query.strip().upper() == "SYSTEM_STATUS_PROBE":
             filtered_alerts = get_active_alerts(location.city)
             realtime_hazards = get_realtime_hazards()
-            combined_alerts = [*filtered_alerts, *realtime_hazards]
-
-            seen_alerts = set()
-            merged_alerts = []
-            for alert in combined_alerts:
-                key = (alert.title, alert.description, alert.source)
-                if key not in seen_alerts:
-                    seen_alerts.add(key)
-                    merged_alerts.append(alert)
+            merged_alerts = deduplicate_hazard_alerts([*filtered_alerts, *realtime_hazards])
 
             from backend.services.rag.service import detect_synoptic_overlays
             synoptic_overlays = detect_synoptic_overlays(
@@ -246,6 +339,14 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
             realtime_hazards = get_realtime_hazards()
             combined_alerts = [*filtered_alerts, *realtime_hazards]
 
+        # ── Step 3.8: Scientific Tone Sync (Satellite Mode Activated) ──
+        if request.scientific_mode:
+            english_query = (
+                f"{english_query} [SCIENTIFIC SATELLITE MODE ACTIVE: Analyze atmospheric dynamics with scientific rigor. "
+                f"Reference Cloud-Top Brightness Temperatures (BT from MODIS IR sensors), "
+                f"Convective Available Potential Energy (CAPE in J/kg), and synoptic low-pressure barometric gradients.]"
+            )
+
         # Pass target_lang directly so RAG prompt enforces Strict Monolingual Mandate in target script
         rag_request = request.model_copy(update={"query": english_query, "language": target_lang})
         chat_response = rag_service.answer(
@@ -260,15 +361,10 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
             chat_response.alerts = []
             chat_response.synoptic_overlays = []
         else:
-            # Merge realtime hazards into ChatResponse alerts ensuring deduplication
-            seen_alerts = set()
-            merged_alerts = []
-            for alert in (chat_response.alerts or []) + realtime_hazards:
-                key = (alert.title, alert.description, alert.source)
-                if key not in seen_alerts:
-                    seen_alerts.add(key)
-                    merged_alerts.append(alert)
-            chat_response.alerts = merged_alerts
+            # Merge realtime hazards into ChatResponse alerts ensuring single-hazard spatial deduplication (< 35km)
+            chat_response.alerts = deduplicate_hazard_alerts(
+                (chat_response.alerts or []) + realtime_hazards
+            )
 
         # ── Step 5: Linguistic Sovereignty Verification & Dual Text Display ──
         raw_ai_reply = chat_response.bot_reply
@@ -639,6 +735,119 @@ def ingest_rag() -> dict[str, int | str]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail="RAG ingestion failed.") from exc
+
+
+# ------------------------------------------------------------------
+# SATELLITE RADAR & EARTH ENGINE (GEE) ENDPOINTS
+# ------------------------------------------------------------------
+@app.get("/api/v1/map/layers/{layer_id}")
+async def get_satellite_layer(layer_id: str):
+    """Return Leaflet-compatible dynamic XYZ tile URL for satellite radar overlays.
+
+    Supported layer_id:
+      - scientific_composite | composite | scientific: Blended Low-Pressure Aura + 5-Step Rainfall Mask
+      - low_pressure | pressure | synoptic_aura: Low-Pressure Convective Storm Center Aura
+      - precipitation | rain | radar: High-Contrast Precipitation Mask (NASA GPM)
+      - thermal | lst | temperature | heat: MODIS Land Surface Temperature (LST)
+    """
+    from backend.services.weather.gee_service import gee_service
+
+    normalized = layer_id.strip().lower()
+
+    if normalized in ("scientific_composite", "composite", "scientific", "fusion"):
+        try:
+            tile_url = gee_service.get_scientific_composite_tile_url()
+            return {
+                "status": "success",
+                "layer_id": "scientific_composite",
+                "title": "Scientific Multi-Hazard Composite (GEE)",
+                "source": "NASA GPM Precipitation Mask + ECMWF Synoptic Pressure Aura",
+                "tile_url": tile_url,
+                "opacity": 0.6,
+                "attribution": "NASA GPM & ECMWF (Google Earth Engine)",
+                "min_zoom": 1,
+                "max_zoom": 14,
+            }
+        except Exception as exc:
+            logging.error("Failed to generate scientific composite tile URL: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Scientific composite generation failed: {exc}")
+
+    elif normalized in ("low_pressure", "pressure", "mslp", "synoptic_aura", "cyclone"):
+        try:
+            tile_url = gee_service.get_low_pressure_tile_url()
+            return {
+                "status": "success",
+                "layer_id": "low_pressure",
+                "title": "Synoptic Low-Pressure Aura",
+                "source": "ECMWF / ERA5 Sea Level Pressure (hPa)",
+                "tile_url": tile_url,
+                "palette": gee_service.LOW_PRESSURE_PALETTE,
+                "min_val": 985.0,
+                "max_val": 1012.0,
+                "unit": "hPa",
+                "min_zoom": 1,
+                "max_zoom": 12,
+            }
+        except Exception as exc:
+            logging.error("Failed to generate low-pressure tile URL: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Low-pressure layer generation failed: {exc}")
+
+    elif normalized in ("thermal", "lst", "temp", "temperature", "heat"):
+        try:
+            tile_url = gee_service.get_thermal_tile_url()
+            return {
+                "status": "success",
+                "layer_id": "thermal",
+                "title": "Thermal Radar (MODIS LST)",
+                "source": "NASA / USGS MODIS Land Surface Temperature (1km)",
+                "tile_url": tile_url,
+                "palette": gee_service.JET_PALETTE,
+                "min_val": 10.0,
+                "max_val": 48.0,
+                "unit": "°C",
+                "min_zoom": 1,
+                "max_zoom": 12,
+            }
+        except Exception as exc:
+            logging.error("Failed to generate thermal tile URL: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Thermal layer generation failed: {exc}")
+
+    elif normalized in ("precipitation", "rain", "radar", "gpm", "precip_mask"):
+        try:
+            tile_url = gee_service.get_precipitation_mask_tile_url()
+            return {
+                "status": "success",
+                "layer_id": "precipitation",
+                "title": "Precipitation Mask (NASA GPM)",
+                "source": "NASA Global Precipitation Measurement (IMERG)",
+                "tile_url": tile_url,
+                "palette": gee_service.PRECIP_MASK_PALETTE,
+                "min_val": 0.2,
+                "max_val": 25.0,
+                "unit": "mm/hr",
+                "min_zoom": 1,
+                "max_zoom": 14,
+            }
+        except Exception as exc:
+            logging.error("Failed to generate precipitation tile URL: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Precipitation layer generation failed: {exc}")
+
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown satellite layer '{layer_id}'. Available layers: 'scientific_composite', 'low_pressure', 'precipitation', 'thermal'."
+        )
+
+
+@app.get("/api/v1/map/stats")
+async def get_satellite_area_stats(
+    lat: float = Query(..., description="Latitude coordinate"),
+    lon: float = Query(..., description="Longitude coordinate"),
+    radius_km: float = Query(10.0, description="Radial sector buffer in km")
+):
+    """Extract AI orbital verification statistics for sector around coordinates."""
+    from backend.services.weather.gee_service import gee_service
+    return gee_service.get_area_stats(lat=lat, lon=lon, radius_km=radius_km)
 
 
 # ------------------------------------------------------------------

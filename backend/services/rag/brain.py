@@ -570,6 +570,57 @@ def extract_minute_offset(query: str) -> Optional[int]:
     return get_query_time_offset(query)
 
 
+# ── Hyperlocal Precipitation Intent Detection ──
+PRECIP_QUERY_YESNO = "PRECIP_QUERY_YESNO"
+PRECIP_QUERY_DURATION = "PRECIP_QUERY_DURATION"
+
+
+def detect_precip_intent(query: str) -> Optional[str]:
+    """
+    Detects whether the query is:
+    - PRECIP_QUERY_DURATION: Asking when precipitation starts or stops (e.g., 'When will it stop?', 'baarish kab rukegi?').
+    - PRECIP_QUERY_YESNO: Asking whether it is currently raining or dry (e.g., 'Is it raining?', 'is it raining outside?').
+    """
+    if not query:
+        return None
+    q = query.strip().lower()
+
+    # If the user is explicitly asking about tomorrow or past days, let daily/historical engines handle it
+    if any(tw in q for tw in ["tomorrow", "yesterday", "last week", "next week", "kal subah", "kal shaam", "beeta kal", "আগামীকাল", "গতকাল"]):
+        return None
+
+
+    # Duration / Stop / Start patterns
+    duration_keywords = [
+        "when will it stop", "when will rain stop", "when does it stop", "when will the rain stop",
+        "when is rain stopping", "when will it cease", "how long will it rain", "how long will rain continue",
+        "when will it start", "when will rain start", "when does rain start", "when will the rain start",
+        "when is rain starting", "baarish kab rukegi", "barish kab rukegi", "barish kab band hogi",
+        "kab barish band hogi", "barish kab rukhegi", "barish kab khatam hogi", "barish kab shuru hogi",
+        "kab barish shuru hogi", "barish kab aayegi", "kab barish hogi", "kab baarish hogi",
+        "barish kab tak chalegi", "barish kab tak hogi", "বৃষ্টি কখন থামবে", "বৃষ্টি কখন শুরু হবে",
+        "மழை எப்போது நிற்கும்", "மழை எப்போது தொடங்கும்", "వర్షం ఎప్పుడు ఆగుతుంది", "వర్షం ఎప్పుడు మొదలవుతుంది"
+    ]
+    if any(dk in q for dk in duration_keywords) or re.search(r"\bwhen\s+(?:will|does|is)\s+(?:it|the\s+rain|rain)\s+(?:stop|start|end|clear)\b", q):
+        return PRECIP_QUERY_DURATION
+
+    # Yes/No Rain queries
+    yesno_keywords = [
+        "is it raining", "is it raining now", "is it raining outside", "is it raining here",
+        "is it raining there", "is it raining in your area", "is it currently raining",
+        "is rain falling", "will it rain", "will it rain now", "will it rain today",
+        "is it wet outside", "is there rain", "any rain right now",
+        "barish ho rahi hai", "baarish ho rahi hai", "kya barish ho rahi hai", "kya baarish ho rahi hai",
+        "barish ho rahi h", "barish pad rahi hai", "kya barish hogi", "barish hogi kya",
+        "kya baarish hogi", "baarish hogi kya", "বৃষ্টি কি হচ্ছে", "বৃষ্টি পড়ছে কি",
+        "மழை பெய்கிறதா", "மழை வருகிறதா", "వర్షం పడుతోందా"
+    ]
+    if any(yk in q for yk in yesno_keywords) or re.search(r"\bis\s+it\s+(?:currently\s+)?raining\b", q):
+        return PRECIP_QUERY_YESNO
+
+    return None
+
+
 # Re-export WeatherGPTBrain for convenience and interoperability
 def __getattr__(name: str):
     if name == "WeatherGPTBrain":

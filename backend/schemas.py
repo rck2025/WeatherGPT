@@ -88,6 +88,8 @@ class WeatherAlert(BaseModel):
     is_historical: bool = False
     occurred_at: datetime | None = None
     lightning_active: bool = False
+    magnitude: float | None = None
+    visual_radius: float | None = None
 
 
 # -------------------------
@@ -109,6 +111,8 @@ class ChatRequest(BaseModel):
     location: LocationInput | None = None
     language: str = "en"
     channel: str = "web"
+    scientific_mode: bool = False
+    history: list[dict] = []
 
 
 # -------------------------

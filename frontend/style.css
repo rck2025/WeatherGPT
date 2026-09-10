@@ -808,8 +808,58 @@ audio::-webkit-media-controls-volume-slider {
   font-family: var(--font-mono) !important;
 }
 
-.leaflet-tile-pane {
-  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%);
+body.sat-mode .leaflet-tile-pane,
+#radarMap.sat-mode .leaflet-tile-pane {
+  filter: brightness(1.1) contrast(1.1) saturate(0.8) !important;
+}
+
+body:not(.sat-mode) .leaflet-tile-pane {
+  filter: none !important;
+}
+
+/* ── Tactical Radar View Switcher (Bloomberg Terminal Aesthetic) ── */
+.map-view-switch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.view-mode-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--terminal-green-dim);
+  letter-spacing: 0.5px;
+}
+
+.map-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--terminal-green);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease-in-out;
+  text-transform: uppercase;
+}
+
+.map-toggle-btn:hover {
+  background-color: var(--terminal-green);
+  color: #000000;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
+}
+
+.map-toggle-btn.is-sat-active {
+  background-color: var(--terminal-green) !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  border-color: var(--terminal-green) !important;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.4) !important;
+  text-shadow: none !important;
 }
 
 .leaflet-popup-content-wrapper {
@@ -849,6 +899,8 @@ audio::-webkit-media-controls-volume-slider {
   border: none !important;
   overflow: visible !important;
   pointer-events: none !important;
+  transform: translate(-50%, -50%);
+  transform-origin: center center;
 }
 
 .sonar-radar-container {
@@ -856,26 +908,30 @@ audio::-webkit-media-controls-volume-slider {
   height: 400px;
   position: relative;
   overflow: visible;
-  pointer-events: none;
+  pointer-events: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 /* The Sweep: 360-degree rotating green conic beam (Realistic 18-second Doppler scan, ~3.3 RPM) */
+.geospatial-radar .radar-sweep,
 .sonar-radar-container .radar-sweep,
-.geospatial-radar-sweep {
+.geospatial-radar-sweep,
+.radar-sweep {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(from 0deg, rgba(0, 255, 0, 0.2) 0%, transparent 40%);
   animation: radar-sweep-rotate 18s linear infinite;
-  pointer-events: none;
+  pointer-events: none !important;
   transform-origin: center center;
 }
 
+.geospatial-radar .radar-sweep::before,
 .sonar-radar-container .radar-sweep::before,
-.geospatial-radar-sweep::before {
+.geospatial-radar-sweep::before,
+.radar-sweep::before {
   content: '';
   position: absolute;
   top: 0;
@@ -884,7 +940,7 @@ audio::-webkit-media-controls-volume-slider {
   height: 50%;
   background: linear-gradient(to top, rgba(0, 255, 0, 0.95), rgba(0, 255, 0, 0.1));
   box-shadow: 0 0 6px rgba(0, 255, 0, 0.9);
-  pointer-events: none;
+  pointer-events: none !important;
 }
 
 @keyframes radar-sweep-rotate {
@@ -897,13 +953,15 @@ audio::-webkit-media-controls-volume-slider {
 }
 
 /* The Sonar Waves: Realistic 6-second phased ripple sequence (2-second release cycle) */
+.geospatial-radar .sonar-wave,
+.sonar-radar-container .sonar-wave,
 .sonar-wave {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   border: 1px solid rgba(0, 255, 0, 0.4);
   box-shadow: 0 0 8px rgba(0, 255, 0, 0.2), inset 0 0 8px rgba(0, 255, 0, 0.08);
-  pointer-events: none;
+  pointer-events: none !important;
   transform-origin: center center;
   animation: sonar-expand 6s cubic-bezier(0.12, 0.65, 0.35, 1) infinite;
   opacity: 0;
@@ -939,6 +997,8 @@ audio::-webkit-media-controls-volume-slider {
 }
 
 /* The Center Point: Solid bright green transmitter dot synced to 2s wave release */
+.geospatial-radar .center-point,
+.sonar-radar-container .center-point,
 .center-point,
 .geospatial-radar-center-ping {
   position: absolute;
@@ -950,7 +1010,7 @@ audio::-webkit-media-controls-volume-slider {
   border-radius: 50%;
   box-shadow: 0 0 10px #00ff00, 0 0 20px rgba(0, 255, 0, 0.95);
   transform: translate(-50%, -50%);
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 5;
   animation: center-transmitter-pulse 2s ease-in-out infinite;
 }
@@ -976,8 +1036,30 @@ audio::-webkit-media-controls-volume-slider {
 }
 
 .sonar-radar-container,
+.geospatial-radar,
 .geospatial-radar-sweep,
-.radar-sweep {
+.radar-sweep,
+.sonar-wave,
+.center-point {
+  pointer-events: none !important;
+}
+
+/* ── Satellite Mode: Remove Radar Sweep, Sonar Ripples & Center Ping ── */
+body.sat-mode .geospatial-radar,
+#radarMap.sat-mode .geospatial-radar,
+body.sat-mode .sonar-radar-leaflet-icon,
+#radarMap.sat-mode .sonar-radar-leaflet-icon,
+body.sat-mode .sonar-radar-container,
+#radarMap.sat-mode .sonar-radar-container,
+body.sat-mode .radar-sweep,
+#radarMap.sat-mode .radar-sweep,
+body.sat-mode .sonar-wave,
+#radarMap.sat-mode .sonar-wave,
+body.sat-mode .center-point,
+#radarMap.sat-mode .center-point {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
   pointer-events: none !important;
 }
 
@@ -1361,6 +1443,21 @@ audio::-webkit-media-controls-volume-slider {
   }
 }
 
+/* In Satellite Mode: Remove radar blink/pulse from the user beacon (keep crisp solid pin) */
+body.sat-mode .user-beacon-pulse,
+#radarMap.sat-mode .user-beacon-pulse {
+  display: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.sat-mode .user-beacon-core,
+#radarMap.sat-mode .user-beacon-core {
+  box-shadow: 0 0 4px rgba(0, 210, 255, 0.6), inset 0 0 2px #ffffff !important;
+  animation: none !important;
+}
+
 /* ── Synoptic System Heatmap & Atmospheric Aura Overlay ─────────── */
 .synoptic-svg-wrap {
   pointer-events: auto;
@@ -1690,5 +1787,305 @@ audio::-webkit-media-controls-volume-slider {
     filter: drop-shadow(0 0 14px rgba(255, 49, 49, 1));
     opacity: 1;
   }
+}
+
+/* ── Magnitude-Aware Seismic Layers (Satellite Scientific Stack) ── */
+.seismic-ripple-leaflet-icon {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+  pointer-events: auto !important;
+}
+
+.seismic-ripple-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transform-origin: center center;
+}
+
+/* 3-Ring Expanding Seismic Waves */
+.seismic-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--seismic-color, #FF3131);
+  box-shadow: 0 0 10px var(--seismic-color, #FF3131), inset 0 0 8px var(--seismic-color, #FF3131);
+  pointer-events: none;
+  transform-origin: center center;
+  animation: seismic-wave-expand var(--seismic-dur, 2s) cubic-bezier(0.15, 0.6, 0.35, 1) infinite;
+  opacity: 0;
+}
+
+.seismic-wave.wave-1 {
+  animation-delay: 0s;
+}
+
+.seismic-wave.wave-2 {
+  animation-delay: calc(var(--seismic-dur, 2s) * 0.33);
+}
+
+.seismic-wave.wave-3 {
+  animation-delay: calc(var(--seismic-dur, 2s) * 0.66);
+}
+
+@keyframes seismic-wave-expand {
+  0% {
+    transform: scale(0.12);
+    opacity: 0.95;
+    border-width: 2.5px;
+  }
+  40% {
+    opacity: 0.7;
+    border-width: 1.8px;
+  }
+  75% {
+    opacity: 0.3;
+    border-width: 1.2px;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+    border-width: 0.8px;
+  }
+}
+
+/* Central Epicenter Core */
+.seismic-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  animation: seismic-core-pulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes seismic-core-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+}
+
+/* Magnitude Callout Badge */
+.seismic-mag-tag {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 14, 11, 0.92);
+  border: 1px solid var(--seismic-color, #FF3131);
+  padding: 1px 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  border-radius: 2px;
+  white-space: nowrap;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  z-index: 7;
+}
+
+/* Magnitude Tiers: Major / Catastrophic (Mag >= 6.5) */
+.seismic-ripple-container.mag-tier-major .seismic-wave {
+  border-width: 2.5px;
+  box-shadow: 0 0 18px var(--seismic-color, #FF0055), inset 0 0 12px var(--seismic-color, #FF0055);
+}
+
+.seismic-ripple-container.mag-tier-major .seismic-core {
+  width: 15px;
+  height: 15px;
+  box-shadow: 0 0 20px #FF0055, 0 0 35px rgba(255, 0, 85, 0.8) !important;
+}
+
+.seismic-ripple-container.mag-tier-major .seismic-mag-tag {
+  background: #190209;
+  box-shadow: 0 0 10px rgba(255, 0, 85, 0.7);
+}
+
+/* System Scientific Stack Notice in Chat Stream */
+.system-scientific-notice {
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 2px;
+  padding: 6px 10px;
+  margin: 6px 0;
+}
+
+/* ── Task 3: Dynamic Ocean Glow (Deep Midnight Blue) ── */
+#map,
+#radarMap,
+.leaflet-container {
+  background: #000814 !important;
+}
+
+/* ── Task 4: Golden Ratio High-Contrast Satellite Base (Esri) ── */
+.esri-satellite-high-contrast,
+.leaflet-tile-pane .esri-satellite-high-contrast,
+#radarMap.sat-mode .leaflet-tile-pane > .leaflet-layer:first-child img {
+  filter: brightness(1.1) contrast(1.1) saturate(0.7) !important;
+}
+
+/* ── Task 3: Satellite Mode Tactical Pin Markers (Sharp 3px Miniaturized Pins) ── */
+.satellite-pin-marker {
+  filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 5px rgba(255, 49, 49, 0.85));
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.satellite-pin-marker:hover {
+  transform: scale(1.8);
+  filter: drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 10px #00F0FF);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCESSIBLE DISASTER-ALERT MAP MARKERS (Leaflet.js)
+   Clean, glanceable, icon-only markers for rural & general public users.
+   No floating text clutter. No obscuring glow bleed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Clean 32px Circular Icon-Only Badge */
+.clean-marker-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.marker-badge-icon-only {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #e2504f; /* Alert Red (severe/extreme) */
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65), 0 0 4px rgba(226, 80, 79, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto !important;
+  user-select: none;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+  z-index: 500;
+}
+
+.marker-badge-icon-only.severity-moderate {
+  background-color: #f0997b; /* Soft Coral (moderate) */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.65), 0 0 4px rgba(240, 153, 123, 0.4);
+}
+
+.marker-badge-icon-only:hover,
+.marker-badge-icon-only:focus-visible {
+  transform: scale(1.18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), 0 0 10px #ffffff;
+  outline: none;
+}
+
+/* Icons inside the badge */
+.marker-badge-icon-only i,
+.marker-badge-icon-only svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #ffffff;
+  stroke: #ffffff;
+  fill: none;
+  stroke-width: 2.2;
+}
+
+.marker-badge-icon-only.marker-type-rainfall i,
+.marker-badge-icon-only.marker-type-rainfall svg {
+  color: #ffffff;
+  stroke: #ffffff;
+}
+
+/* Expanded Plain-Language Safety Popup */
+.plain-safety-popup {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-width: 240px;
+  max-width: 290px;
+  padding: 4px 2px;
+}
+
+.plain-safety-popup .popup-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(226, 80, 79, 0.35);
+}
+
+.plain-safety-popup .popup-badge {
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.plain-safety-popup .popup-badge.badge-moderate {
+  background: #331f0f;
+  border: 1px solid #f0997b;
+  color: #f0997b;
+}
+
+.plain-safety-popup .popup-badge.badge-severe {
+  background: #2a0b0b;
+  border: 1px solid #e2504f;
+  color: #f0b3b2;
+}
+
+.plain-safety-popup .popup-title {
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.plain-safety-popup .popup-action-guide {
+  background: rgba(226, 80, 79, 0.12);
+  border-left: 3px solid #e2504f;
+  padding: 6px 8px;
+  border-radius: 0 4px 4px 0;
+  color: #fcebeb;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 7px;
+  line-height: 1.35;
+}
+
+.plain-safety-popup .popup-action-guide.guide-moderate {
+  background: rgba(240, 153, 123, 0.12);
+  border-left-color: #f0997b;
+}
+
+.plain-safety-popup .popup-detail-text {
+  color: #d1d5db;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.plain-safety-popup .popup-footer-source {
+  font-size: 9.5px;
+  color: #9ca3af;
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+  padding-top: 4px;
+  display: flex;
+  justify-content: space-between;
 }
 

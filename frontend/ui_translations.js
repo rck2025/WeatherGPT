@@ -562,14 +562,195 @@ const UI_LOCALE = {
   }
 };
 
+/**
+ * DISASTER_MARKER_LOCALE: 15-Language Localization for Accessible Map Markers
+ * Simplified non-technical citizen guidance for rural and general public users.
+ */
+const DISASTER_MARKER_LOCALE = {
+  en: {
+    STORM_WARNING: "Storm warning",
+    HEAVY_RAIN_NEARBY: "Heavy rain expected nearby",
+    RAIN_GUSTS_NEARBY: "Rain & gusty winds expected nearby",
+    SEVERE_STORM_IMMINENT: "Severe storm imminent",
+    STAY_ALERT: "Stay alert",
+    MOVE_TO_SAFETY: "Move to safety now",
+    TAP_FOR_SAFETY_DETAILS: "Tap marker for safety details",
+    SAFETY_ADVICE: "Safety Advisory",
+    ACTION_REQUIRED: "Action Required",
+  },
+  hi: {
+    STORM_WARNING: "तूफान चेतावनी",
+    HEAVY_RAIN_NEARBY: "आसपास भारी बारिश की संभावना",
+    RAIN_GUSTS_NEARBY: "बारिश और तेज हवाओं की संभावना",
+    SEVERE_STORM_IMMINENT: "भीषण तूफान का खतरा",
+    STAY_ALERT: "सतर्क रहें",
+    MOVE_TO_SAFETY: "सुरक्षित स्थान पर जाएं",
+    TAP_FOR_SAFETY_DETAILS: "सुरक्षा विवरण के लिए टैप करें",
+    SAFETY_ADVICE: "सुरक्षा सलाह",
+    ACTION_REQUIRED: "कार्रवाई आवश्यक",
+  },
+  bn: {
+    STORM_WARNING: "ঝড়ের সতর্কতা",
+    HEAVY_RAIN_NEARBY: "কাছাকাছি ভারী বৃষ্টির সম্ভাবনা",
+    RAIN_GUSTS_NEARBY: "বৃষ্টি ও দমকা বাতাসের সম্ভাবনা",
+    SEVERE_STORM_IMMINENT: "তীব্র ঝড়ের আশঙ্কা",
+    STAY_ALERT: "সতর্ক থাকুন",
+    MOVE_TO_SAFETY: "নিরাপদ স্থানে যান",
+    TAP_FOR_SAFETY_DETAILS: "নিরাপত্তা তথ্যের জন্য ট্যাপ করুন",
+    SAFETY_ADVICE: "সুরক্ষা নির্দেশিকা",
+    ACTION_REQUIRED: "জরুরি পদক্ষেপ",
+  },
+  ta: {
+    STORM_WARNING: "புயல் எச்சரிக்கை",
+    HEAVY_RAIN_NEARBY: "அருகில் கனமழை எதிர்பார்க்கப்படுகிறது",
+    RAIN_GUSTS_NEARBY: "மழை மற்றும் பலத்த காற்று வீசக்கூடும்",
+    SEVERE_STORM_IMMINENT: "கடும் புயல் அபாயம்",
+    STAY_ALERT: "விழிப்புடன் இருங்கள்",
+    MOVE_TO_SAFETY: "உடனடியாக பாதுகாப்பான இடத்திற்கு செல்லுங்கள்",
+    TAP_FOR_SAFETY_DETAILS: "பாதுகாப்பு விவரங்களுக்கு தட்டவும்",
+    SAFETY_ADVICE: "பாதுகாப்பு வழிகாட்டுதல்",
+    ACTION_REQUIRED: "உடனடி நடவடிக்கை",
+  },
+  te: {
+    STORM_WARNING: "తుఫాను హెచ్చరిక",
+    HEAVY_RAIN_NEARBY: "సమీపంలో భారీ వర్షం పడే అవకాశం ఉంది",
+    RAIN_GUSTS_NEARBY: "వర్షం మరియు ఈదురు గాలుల అవకాశం",
+    SEVERE_STORM_IMMINENT: "తీవ్రమైన తుఫాను ముప్పు",
+    STAY_ALERT: "అప్రమత్తంగా ఉండండి",
+    MOVE_TO_SAFETY: "వెంటనే సురಕ್ಷಿತ ప్రాంతానికి వెళ్లండి",
+    TAP_FOR_SAFETY_DETAILS: "భద్రతా వివరాల కోసం తాకండి",
+    SAFETY_ADVICE: "భద్రతా సలహా",
+    ACTION_REQUIRED: "చర్య అవసరం",
+  },
+  mr: {
+    STORM_WARNING: "वादळाचा इशारा",
+    HEAVY_RAIN_NEARBY: "जवळपास मुसळधार पावसाची शक्यता",
+    RAIN_GUSTS_NEARBY: "पाऊस आणि सोसाट्याचा वारा वाहण्याची शक्यता",
+    SEVERE_STORM_IMMINENT: "तीव्र चक्रीवादळाचा धोका",
+    STAY_ALERT: "सतर्क राहा",
+    MOVE_TO_SAFETY: "ताबडतोब सुरक्षित स्थळी जा",
+    TAP_FOR_SAFETY_DETAILS: "सुरक्षा माहितीसाठी टॅप करा",
+    SAFETY_ADVICE: "सुरक्षा सूचना",
+    ACTION_REQUIRED: "त्वरित कृती करा",
+  },
+  gu: {
+    STORM_WARNING: "વાવાઝોડાની ચેતવણી",
+    HEAVY_RAIN_NEARBY: "નજીકમાં ભારે વરસાદની સંભાવના",
+    RAIN_GUSTS_NEARBY: "વરસાદ અને ભારે પવન ફૂંકાવાની શક્યતા",
+    SEVERE_STORM_IMMINENT: "તીવ્ર વાવાઝોડાનો ખતરો",
+    STAY_ALERT: "સાવધ રહો",
+    MOVE_TO_SAFETY: "તરત જ સલામત સ્થળે જાવ",
+    TAP_FOR_SAFETY_DETAILS: "સુરક્ષા વિગતો માટે ટેપ કરો",
+    SAFETY_ADVICE: "સલામતી સલાહ",
+    ACTION_REQUIRED: "પગલાં જરૂરી",
+  },
+  kn: {
+    STORM_WARNING: "ಬಿರುಗಾಳಿ ಎಚ್ಚರಿಕೆ",
+    HEAVY_RAIN_NEARBY: "ಹತ್ತಿರದಲ್ಲಿ ಭಾರಿ ಮಳೆಯಾಗುವ ಸಾಧ್ಯತೆ",
+    RAIN_GUSTS_NEARBY: "ಮಳೆ ಮತ್ತು ಬಿರುಗಾಳಿ ಬೀಸುವ ಸಾಧ್ಯತೆ",
+    SEVERE_STORM_IMMINENT: "ತೀವ್ರ ಚಂಡಮಾರುತದ ಅಪಾಯ",
+    STAY_ALERT: "ಎಚ್ಚರವಾಗಿರಿ",
+    MOVE_TO_SAFETY: "ತಕ್ಷಣ ಸುರಕ್ಷಿತ ಸ್ಥಳಕ್ಕೆ ತೆರಳಿ",
+    TAP_FOR_SAFETY_DETAILS: "ಸುರಕ್ಷತಾ ವಿವರಗಳಿಗಾಗಿ ಟ್ಯಾಪ್ ಮಾಡಿ",
+    SAFETY_ADVICE: "ಸುರಕ್ಷತಾ ಸಲಹೆ",
+    ACTION_REQUIRED: "ಕ್ರಮ ಅಗತ್ಯವಿದೆ",
+  },
+  ml: {
+    STORM_WARNING: "കൊടുങ്കാറ്റ് മുന്നറിയിപ്പ്",
+    HEAVY_RAIN_NEARBY: "സമീപത്ത് കനത്ത മഴയ്ക്ക് സാധ്യത",
+    RAIN_GUSTS_NEARBY: "മഴയ്ക്കും കാറ്റിനും സാധ്യത",
+    SEVERE_STORM_IMMINENT: "കടുത്ത കൊടുങ്കാറ്റ് ഭീഷണി",
+    STAY_ALERT: "ജാഗ്രത പാലിക്കുക",
+    MOVE_TO_SAFETY: "ഉടൻ സുരക്ഷിത സ്ഥാനത്തേക്ക് മാറുക",
+    TAP_FOR_SAFETY_DETAILS: "സുരക്ഷാ വിവരങ്ങൾക്ക് ഇവിടെ തൊടുക",
+    SAFETY_ADVICE: "സുരക്ഷാ നിർദ്ദേശം",
+    ACTION_REQUIRED: "നടപടി സ്വീകരിക്കുക",
+  },
+  ur: {
+    STORM_WARNING: "طوفان کی پیشگی وارننگ",
+    HEAVY_RAIN_NEARBY: "قریبی علاقوں میں شدید بارش کا امکان",
+    RAIN_GUSTS_NEARBY: "بارش اور تیز آندھی کا امکان",
+    SEVERE_STORM_IMMINENT: "شدید طوفان کا خطرہ",
+    STAY_ALERT: "ہوشیار رہیں",
+    MOVE_TO_SAFETY: "فوراً محفوظ مقام پر جائیں",
+    TAP_FOR_SAFETY_DETAILS: "حفاظتی ہدایات کے لیے ٹیپ کریں",
+    SAFETY_ADVICE: "حفاظتی مشورہ",
+    ACTION_REQUIRED: "فوری کارروائی ضروری",
+  },
+  pa: {
+    STORM_WARNING: "ਤੂਫ਼ਾਨ ਦੀ ਚਿਤਾਵਨੀ",
+    HEAVY_RAIN_NEARBY: "ਨੇੜੇ ਭਾਰੀ ਮੀਂਹ ਪੈਣ ਦੀ ਸੰਭਾਵਨਾ",
+    RAIN_GUSTS_NEARBY: "ਮੀਂਹ ਅਤੇ ਤੇਜ਼ ਹਵਾਵਾਂ ਦੀ ਸੰਭਾਵਨਾ",
+    SEVERE_STORM_IMMINENT: "ਭਿਆਨਕ ਤੂਫ਼ਾਨ ਦਾ ਖ਼ਤਰਾ",
+    STAY_ALERT: "ਸੁਚੇਤ ਰਹੋ",
+    MOVE_TO_SAFETY: "ਤੁਰੰਤ ਸੁਰੱਖਿਅਤ ਥਾਂ 'ਤੇ ਜਾਓ",
+    TAP_FOR_SAFETY_DETAILS: "ਸੁਰੱਖਿਆ ਜਾਣਕਾਰੀ ਲਈ ਟੈਪ ਕਰੋ",
+    SAFETY_ADVICE: "ਸੁਰੱਖਿਆ ਸਲਾਹ",
+    ACTION_REQUIRED: "ਤੁਰੰਤ ਕਾਰਵਾਈ ਲੋੜੀਂਦੀ",
+  },
+  or: {
+    STORM_WARNING: "ଝଡ଼ ସତର୍କତା",
+    HEAVY_RAIN_NEARBY: "ନିକଟରେ ପ୍ରବଳ ବର୍ଷା ସମ୍ଭାବନା",
+    RAIN_GUSTS_NEARBY: "ବର୍ଷା ଏବଂ ପ୍ରବଳ ପବନର ସମ୍ଭାବନା",
+    SEVERE_STORM_IMMINENT: "ଭୟଙ୍କର ଝଡ଼ର ଆଶଙ୍କା",
+    STAY_ALERT: "ସତର୍କ ରୁହନ୍ତୁ",
+    MOVE_TO_SAFETY: "ତୁରନ୍ତ ସୁରକ୍ଷିତ ସ୍ଥାନକୁ ଯାଆନ୍ତୁ",
+    TAP_FOR_SAFETY_DETAILS: "ସୁରକ୍ଷା ବିବରଣୀ ପାଇଁ ଟ୍ୟାପ୍ କରନ୍ତୁ",
+    SAFETY_ADVICE: "ସୁରକ୍ଷା ପରାମର୍ଶ",
+    ACTION_REQUIRED: "ତ୍ୱରିତ କାର୍ଯ୍ୟାନୁଷ୍ଠାନ",
+  },
+  as: {
+    STORM_WARNING: "ধুমুহাৰ সতৰ্কবাৰ্তা",
+    HEAVY_RAIN_NEARBY: "ওচৰতে প্ৰবল বৰষুণৰ সম্ভাৱনা",
+    RAIN_GUSTS_NEARBY: "বৰষুণ আৰু ধুমুহা বতাহৰ সম্ভাৱনা",
+    SEVERE_STORM_IMMINENT: "প্ৰচণ্ড ধুমুহাৰ আশংকা",
+    STAY_ALERT: "সতৰ্ক থাকক",
+    MOVE_TO_SAFETY: "ততাতৈয়াকৈ সুৰক্ষিত স্থানলৈ যাওক",
+    TAP_FOR_SAFETY_DETAILS: "সুৰক্ষা তথ্যৰ বাবে টেপ কৰক",
+    SAFETY_ADVICE: "সুৰক্ষা পৰামৰ্শ",
+    ACTION_REQUIRED: "পদক্ষেপ গ্ৰহণ কৰক",
+  },
+  sa: {
+    STORM_WARNING: "वात्याचक्र-पूर्वसूचना",
+    HEAVY_RAIN_NEARBY: "समीपे प्रचण्डवृष्टेः सम्भावना",
+    RAIN_GUSTS_NEARBY: "वृष्टेः तीव्रवातानां च सम्भावना",
+    SEVERE_STORM_IMMINENT: "तीव्रवात्यायाः भयम्",
+    STAY_ALERT: "सतर्काः भवन्तु",
+    MOVE_TO_SAFETY: "शीघ्रं सुरक्षितस्थानं गच्छन्तु",
+    TAP_FOR_SAFETY_DETAILS: "सुरक्षाविवरणाय स्पृशतु",
+    SAFETY_ADVICE: "सुरक्षा-निर्देशाः",
+    ACTION_REQUIRED: "आवश्यक-क्रियाशीलता",
+  },
+  ne: {
+    STORM_WARNING: "आँधीबेहरी चेतावनी",
+    HEAVY_RAIN_NEARBY: "नजिकै भारी वर्षाको सम्भावना",
+    RAIN_GUSTS_NEARBY: "वर्षा र हावाहुरीको सम्भावना",
+    SEVERE_STORM_IMMINENT: "तीव्र आँधीबेहरीको जोखिम",
+    STAY_ALERT: "सचेत रहनुहोस्",
+    MOVE_TO_SAFETY: "तुरुन्तै सुरक्षित स्थानमा जानुहोस्",
+    TAP_FOR_SAFETY_DETAILS: "सुरक्षा विवरणका लागि ट्याप गर्नुहोस्",
+    SAFETY_ADVICE: "सुरक्षा सल्लाह",
+    ACTION_REQUIRED: "तत्काल कदम चाल्नुहोस्",
+  },
+};
+
+// Merge disaster marker translations into UI_LOCALE for seamless lookup
+Object.keys(DISASTER_MARKER_LOCALE).forEach((code) => {
+  if (UI_LOCALE[code]) {
+    Object.assign(UI_LOCALE[code], DISASTER_MARKER_LOCALE[code]);
+  }
+});
+
 // Expose globally for vanilla browser scripts and node
 if (typeof window !== "undefined") {
   window.UI_LOCALE = UI_LOCALE;
+  window.DISASTER_MARKER_LOCALE = DISASTER_MARKER_LOCALE;
 }
 if (typeof globalThis !== "undefined") {
   globalThis.UI_LOCALE = UI_LOCALE;
+  globalThis.DISASTER_MARKER_LOCALE = DISASTER_MARKER_LOCALE;
 }
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { UI_LOCALE };
+  module.exports = { UI_LOCALE, DISASTER_MARKER_LOCALE };
 }
 

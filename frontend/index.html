@@ -17,8 +17,11 @@
   <!-- Marked.js CDN (Markdown Parser) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
+  <!-- Tabler Icons (Disaster Alert Map Markers) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+
   <!-- Terminal Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=4.3" />
+  <link rel="stylesheet" href="style.css?v=4.8" />
 </head>
 <body>
   <!-- CRT Scanline Filter -->
@@ -210,6 +213,12 @@
         <div class="radar-wrapper">
           <div class="panel-header">
             <span>GEOSPATIAL HAZARD OVERLAY</span>
+            <div class="map-view-switch-wrap">
+              <span class="view-mode-label">VIEW_MODE:</span>
+              <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Toggle Tactical Grid / Live Satellite Imagery">
+                RADAR_LITE
+              </button>
+            </div>
             <span class="panel-tag" data-t="RADAR_BOUNDS">BOUNDS: SOUTH ASIA</span>
           </div>
 
@@ -319,8 +328,8 @@
   </div>
 
   <!-- Localization Dictionary Script -->
-  <script src="ui_translations.js?v=4.3"></script>
+  <script src="ui_translations.js?v=4.8"></script>
   <!-- Terminal Logic Script -->
-  <script src="app.js?v=4.3"></script>
+  <script src="app.js?v=4.8"></script>
 </body>
 </html>

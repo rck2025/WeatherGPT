@@ -15,6 +15,10 @@ const state = {
   locationMarker: null,
   hazardLayerGroup: null,
   synopticLayerGroup: null,
+  scientificLayer: null,
+  scientificTileUrl: null,
+  lastCenterLat: 22.5726,
+  lastCenterLon: 88.3639,
   hasInitialProbeRan: false,
   isInitialized: false,
   currentInterval: '24h',
@@ -22,6 +26,10 @@ const state = {
   lastWeatherData: null,
   currentLocation: null,
 };
+
+// ── Multi-Turn Conversational Memory (UI State Persistence) ─────────────────
+let chatHistory = [];
+window.chatHistory = chatHistory;
 
 // ── DOM Element Selectors ───────────────────────────────────────────────────
 const elements = {
@@ -82,13 +90,35 @@ function updateClocks() {
 setInterval(updateClocks, 1000);
 updateClocks();
 
-// ── 2. Geospatial Layer (Leaflet.js) ────────────────────────────────────────
+// ── 2. Geospatial Layer (Leaflet.js) & Dual-Mode Background ─────────────────
+// Base Tile Layers: Terminal Dark Matter vs Live Satellite NRT
+const darkLayer = (typeof L !== 'undefined') ? L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  subdomains: 'abcd',
+  attribution: 'Terminal Grid / CartoDB'
+}) : null;
+
+const satelliteLayer = (typeof L !== 'undefined') ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19,
+  attribution: 'Satellite NRT / Esri',
+  className: 'esri-satellite-high-contrast',
+}) : null;
+
+state.darkLayer = darkLayer;
+state.satelliteLayer = satelliteLayer;
+state.mapMode = 'dark';
+window.darkBase = darkLayer;
+window.satBase = satelliteLayer;
+
 function initMap() {
-  const mapElement = document.getElementById('radarMap');
+  const mapElement = document.getElementById('radarMap') || document.getElementById('map');
   if (!mapElement || typeof L === 'undefined') return;
 
+  // Task 3: Dynamic Ocean Glow (Deep Midnight Blue)
+  mapElement.style.backgroundColor = '#000814';
+
   // Initialize map centered on South Asia / India: Bounds [5, 60] to [38, 100]
-  state.map = L.map('radarMap', {
+  state.map = L.map(mapElement, {
     attributionControl: false,
     zoomControl: true,
   });
@@ -96,18 +126,243 @@ function initMap() {
   const southAsiaBounds = [[5, 60], [38, 100]];
   state.map.fitBounds(southAsiaBounds);
 
-  // Standard OpenStreetMap tiles (darkened via CSS filter in style.css)
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-  }).addTo(state.map);
+  // Default to darkLayer (CartoDB Dark Matter)
+  if (state.darkLayer) {
+    state.darkLayer.addTo(state.map);
+  }
 
   // Dedicated layer groups for Synoptic Heatmaps and Multi-Hazard markers
   state.synopticLayerGroup = L.layerGroup().addTo(state.map);
   state.hazardLayerGroup = L.layerGroup().addTo(state.map);
+  window.hazardLayerGroup = state.hazardLayerGroup;
 
   // Initialize Geospatially Anchored Tactical Radar (pinned to default Kolkata coords)
   initRadar(22.5726, 88.3639);
+
 }
+
+/**
+ * Tactical Radar / Satellite Layer Switcher:
+ * Swaps between the high-contrast CartoDB Dark Matter grid and real-time Esri Satellite Imagery
+ * blended with the Google Earth Engine Scientific Multi-Hazard Composite (NASA GPM Rainfall Mask + Low-Pressure Aura).
+ * Guarantees that sonar sweeps, synoptic systems, and pulsing hazard dots stay firmly on top.
+ */
+function toggleMapMode() {
+  const btn = document.getElementById('map-toggle');
+  const mapElem = document.getElementById('radarMap');
+  if (!state.map) return;
+
+  if (state.mapMode === 'dark') {
+    // ── Transition to Satellite / Scientific Mode ──
+    if (state.darkLayer && state.map.hasLayer(state.darkLayer)) {
+      state.map.removeLayer(state.darkLayer);
+    }
+    if (state.satelliteLayer) {
+      state.satelliteLayer.addTo(state.map);
+    }
+    state.mapMode = 'sat';
+    document.body.classList.add('sat-mode');
+    if (mapElem) mapElem.classList.add('sat-mode');
+
+    // Remove radar sweep from map in Satellite mode
+    if (state.radarMarker && state.map.hasLayer(state.radarMarker)) {
+      state.map.removeLayer(state.radarMarker);
+    }
+
+    // 2. Add the GEE Scientific Composite (Rainfall Mask + Low-Pressure Aura) at 0.55 opacity
+    loadScientificCompositeOverlay();
+
+    // 3. Re-render alerts to activate Magnitude-Aware 3-ring Seismic Ripples for earthquakes
+    renderHazardMarkers(state.currentAlerts);
+
+    if (btn) {
+      btn.innerText = 'SAT_ACTIVE';
+      btn.classList.add('is-sat-active');
+      btn.style.backgroundColor = '#00FF41';
+      btn.style.color = '#000000';
+      btn.style.borderColor = '#00FF41';
+      btn.style.boxShadow = '0 0 12px rgba(0, 255, 65, 0.75)';
+    }
+
+    const badge = document.getElementById('radarBadge');
+    if (badge) {
+      badge.textContent = 'SAT: MODIS AURA + GPM MASK';
+      badge.style.borderColor = '#00F0FF';
+      badge.style.color = '#00F0FF';
+    }
+
+    // 4. Tone sync notification
+    appendScientificModeNotification();
+  } else {
+    // ── Transition to Radar Lite / Bloomberg Dark Mode ──
+    // 1. Remove all scientific layers
+    if (state.scientificLayer && state.map.hasLayer(state.scientificLayer)) {
+      state.map.removeLayer(state.scientificLayer);
+    }
+    if (state.satelliteLayer && state.map.hasLayer(state.satelliteLayer)) {
+      state.map.removeLayer(state.satelliteLayer);
+    }
+    // 2. Return to the clean Bloomberg Dark base with simple dots
+    if (state.darkLayer) {
+      state.darkLayer.addTo(state.map);
+    }
+    state.mapMode = 'dark';
+    document.body.classList.remove('sat-mode');
+    if (mapElem) mapElem.classList.remove('sat-mode');
+
+    // Restore radar sweep marker in Tactical Radar mode
+    if (state.radarMarker && !state.map.hasLayer(state.radarMarker)) {
+      state.radarMarker.addTo(state.map);
+    }
+
+    // Re-render alerts to return to clean Bloomberg dots
+    renderHazardMarkers(state.currentAlerts);
+
+    if (btn) {
+      btn.innerText = 'RADAR_LITE';
+      btn.classList.remove('is-sat-active');
+      btn.style.backgroundColor = 'transparent';
+      btn.style.color = '#00FF41';
+      btn.style.borderColor = '';
+      btn.style.boxShadow = '';
+    }
+
+    const badge = document.getElementById('radarBadge');
+    if (badge) {
+      badge.textContent = 'RADAR: SWEEP ACTIVE';
+      badge.style.borderColor = '';
+      badge.style.color = '';
+    }
+  }
+
+  // Ensure radar sweep, synoptic systems, and hazard dots stay on top
+  preserveOverlaysOnTop();
+}
+
+/**
+ * Loads the GEE Scientific Composite layer (NASA GPM IMERG Mask + MODIS/ERA5 Low-Pressure Aura)
+ * and attaches it over the satellite imagery at 0.55 opacity.
+ */
+async function loadScientificCompositeOverlay() {
+  if (!state.map) return;
+
+  if (state.scientificLayer) {
+    if (!state.map.hasLayer(state.scientificLayer)) {
+      state.scientificLayer.addTo(state.map);
+    }
+    state.scientificLayer.setOpacity(0.55);
+    preserveOverlaysOnTop();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/map/layers/scientific_composite');
+    if (!res.ok) {
+      console.warn('Scientific composite overlay returned HTTP', res.status);
+      return;
+    }
+    const data = await res.json();
+    if (data && data.tile_url) {
+      state.scientificTileUrl = data.tile_url;
+      // Attach if still in satellite mode
+      if (state.mapMode === 'sat') {
+        state.scientificLayer = L.tileLayer(data.tile_url, {
+          maxZoom: 19,
+          opacity: 0.55,
+          zIndex: 400,
+          attribution: 'NASA GPM & Synoptic Pressure Aura (GEE)',
+        }).addTo(state.map);
+        preserveOverlaysOnTop();
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load GEE scientific composite overlay:', err);
+  }
+}
+
+/**
+ * Posts a technical telemetry notification to the terminal chat stream
+ * when Satellite Mode is activated.
+ */
+function appendScientificModeNotification() {
+  if (!elements.chatStream) return;
+  const note = document.createElement('div');
+  note.className = 'message-entry system-scientific-notice';
+  note.innerHTML = `
+    <span class="message-prefix" style="color: #00F0FF;">SYS_SATELLITE // SCIENTIFIC_STACK</span>
+    <div class="message-content" style="color: #cbebd0; font-size: 11px; border-left: 2px solid #00F0FF; padding-left: 8px; margin-top: 4px;">
+      <span style="color: #00F0FF; font-weight: 800;">MULTI-HAZARD SCIENTIFIC STACK ACTIVATED:</span>
+      MODIS Cloud-Top Pressure Aura &amp; NASA GPM IMERG Precipitation Mask (&gt;0.2mm/hr) blended over orbital imagery.
+      System calibrated for Cloud-Top Brightness Temperatures (BT) &amp; Convective Available Potential Energy (CAPE) diagnostics.
+    </div>
+  `;
+  elements.chatStream.appendChild(note);
+  note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+/**
+ * Re-elevates vector layers, radar marker, and hazard markers to the front
+ * so they remain prominently visible above newly swapped raster tiles.
+ * Preserves strict Z-Index Hierarchy:
+ * 1. Earthquakes / Hazards at the top (zIndexOffset: 1000)
+ * 2. User Beacon / AI Labels (zIndexOffset: 900)
+ * 3. Synoptic systems / Heatmaps (zIndex: 500)
+ * 4. GEE Overlays (zIndex: 400)
+ * 5. Satellite Base (zIndex: 1)
+ */
+function preserveOverlaysOnTop() {
+  if (!state.map) return;
+
+  if (state.scientificLayer && typeof state.scientificLayer.setZIndex === 'function') {
+    state.scientificLayer.setZIndex(400);
+  }
+
+  if (state.synopticLayerGroup) {
+    if (typeof state.synopticLayerGroup.bringToFront === 'function') {
+      state.synopticLayerGroup.bringToFront();
+    } else if (typeof state.synopticLayerGroup.eachLayer === 'function') {
+      state.synopticLayerGroup.eachLayer(l => {
+        if (typeof l.bringToFront === 'function') l.bringToFront();
+      });
+    }
+  }
+
+  // Radar sweep is active ONLY in Tactical/Dark mode; removed from Satellite mode
+  if (state.mapMode === 'sat') {
+    if (state.radarMarker && state.map.hasLayer(state.radarMarker)) {
+      state.map.removeLayer(state.radarMarker);
+    }
+  } else {
+    if (state.radarMarker && !state.map.hasLayer(state.radarMarker)) {
+      state.radarMarker.addTo(state.map);
+    }
+    if (state.radarMarker && typeof state.radarMarker.setZIndexOffset === 'function') {
+      state.radarMarker.setZIndexOffset(-1000);
+    }
+  }
+
+  if (state.locationMarker && typeof state.locationMarker.bringToFront === 'function') {
+    state.locationMarker.bringToFront();
+  }
+
+  if (state.hazardLayerGroup) {
+    if (typeof state.hazardLayerGroup.bringToFront === 'function') {
+      state.hazardLayerGroup.bringToFront();
+    } else if (typeof state.hazardLayerGroup.eachLayer === 'function') {
+      state.hazardLayerGroup.eachLayer(l => {
+        if (typeof l.bringToFront === 'function') l.bringToFront();
+      });
+    }
+  }
+  if (window.hazardLayerGroup && typeof window.hazardLayerGroup.bringToFront === 'function') {
+    window.hazardLayerGroup.bringToFront();
+  }
+}
+
+// Global window bindings
+window.toggleMapMode = toggleMapMode;
+window.preserveOverlaysOnTop = preserveOverlaysOnTop;
+window.loadScientificCompositeOverlay = loadScientificCompositeOverlay;
 
 /**
  * Creates the Leaflet DivIcon for the Geospatially Anchored Sonar Radar.
@@ -116,15 +371,13 @@ function initMap() {
  */
 function createRadarIcon() {
   return L.divIcon({
-    className: 'sonar-radar-leaflet-icon',
+    className: 'geospatial-radar',
     html: `
-      <div class="sonar-radar-container">
-        <div class="radar-sweep"></div>
-        <div class="sonar-wave wave-1"></div>
-        <div class="sonar-wave wave-2"></div>
-        <div class="sonar-wave wave-3"></div>
-        <div class="center-point"></div>
-      </div>
+      <div class="radar-sweep"></div>
+      <div class="sonar-wave wave-1"></div>
+      <div class="sonar-wave wave-2"></div>
+      <div class="sonar-wave wave-3"></div>
+      <div class="center-point"></div>
     `,
     iconSize: [400, 400],
     iconAnchor: [200, 200],
@@ -134,6 +387,7 @@ function createRadarIcon() {
 /**
  * Geospatial Tactical Radar: Pins a Doppler scanning layer directly to the user's coordinates.
  * Stays georeferenced to the map so dragging/zooming maintains exact anchor to the city.
+ * Active in Tactical/Dark mode, automatically removed in Satellite mode.
  */
 function initRadar(lat, lon) {
   if (!state.map) return;
@@ -147,15 +401,24 @@ function initRadar(lat, lon) {
 
   if (state.radarMarker) {
     state.radarMarker.setLatLng([targetLat, targetLon]);
+    if (state.mapMode === 'sat' && state.map.hasLayer(state.radarMarker)) {
+      state.map.removeLayer(state.radarMarker);
+    } else if (state.mapMode !== 'sat' && !state.map.hasLayer(state.radarMarker)) {
+      state.radarMarker.addTo(state.map);
+    }
   } else {
     const radarIcon = createRadarIcon();
     state.radarMarker = L.marker([targetLat, targetLon], {
       icon: radarIcon,
       interactive: false,
       keyboard: false,
-      zIndexOffset: -100, // Sits under hazard badges and user beacon, over map tiles
-    }).addTo(state.map);
+      zIndexOffset: -1000, // Sits UNDER hazard badges and user beacon, over map tiles
+    });
+    if (state.mapMode !== 'sat') {
+      state.radarMarker.addTo(state.map);
+    }
   }
+  window.radarMarker = state.radarMarker;
 
   // Remove any legacy static screen overlay if present
   const mapContainer = document.getElementById('radarMap') || document.getElementById('map');
@@ -172,21 +435,188 @@ function initRadar(lat, lon) {
 }
 
 // Global aliases for compatibility
+// Global aliases for compatibility
 const initRadarSweep = initRadar;
 window.initRadar = initRadar;
 window.initRadarSweep = initRadar;
+
+// ── Accessible Disaster Alert Map Marker Helpers ───────────────────────────
+const TABLER_ALERT_TRIANGLE_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M12 9v4" /><path d="M12 17h.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+</svg>`;
+
+const TABLER_CLOUD_RAIN_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f5d6d5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-12" /><path d="M11 13v2m0 3v2m4 -5v2m0 3v2" />
+</svg>`;
+
+function getActiveLanguage() {
+  if (elements.languageSelect && elements.languageSelect.value) {
+    return elements.languageSelect.value.toLowerCase().split('-')[0];
+  }
+  return 'en';
+}
+
+function getI18nText(key, defaultText) {
+  const lang = getActiveLanguage();
+  const localeDict = (typeof UI_LOCALE !== 'undefined') ? UI_LOCALE : (window.UI_LOCALE || {});
+  const langDict = localeDict[lang] || localeDict['en'] || {};
+  return langDict[key] || defaultText;
+}
+
+function isRainfallAlert(alert) {
+  if (!alert) return false;
+  const text = `${alert.title || ''} ${alert.description || ''} ${alert.source || ''}`.toLowerCase();
+  const keywords = ['rain', 'thunderstorm', 'squall', 'downpour', 'convective', 'precipitation', 'cyclon', 'cloudburst', 'monsoon', 'lightning', 'hail'];
+  return keywords.some((kw) => text.includes(kw));
+}
+
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 999999;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Creates Marker Type 1: Low-Pressure System Warning (Leaflet L.divIcon)
+ * Clean, icon-only 32px circular badge with Tabler triangle icon.
+ * No floating text, no radial glow bleed. Opens popup on click.
+ */
+function createLowPressureMarkerIcon(severityLevel = 'severe') {
+  const isModerate = severityLevel === 'moderate';
+  const html = `
+    <div class="marker-badge-icon-only severity-${isModerate ? 'moderate' : 'severe'}" role="button" aria-label="Storm Warning" tabindex="0">
+      <i class="ti ti-alert-triangle" aria-hidden="true">
+        ${TABLER_ALERT_TRIANGLE_SVG}
+      </i>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: 'clean-marker-div-icon',
+    html: html,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18],
+  });
+}
+
+function createLowPressurePopupContent(overlay, severityLevel = 'severe') {
+  const isModerate = severityLevel === 'moderate';
+  const heading = getI18nText('STORM_WARNING', 'Storm warning');
+  const actionPrompt = isModerate
+    ? getI18nText('STAY_ALERT', 'Stay alert')
+    : getI18nText('MOVE_TO_SAFETY', 'Move to safety now');
+  const captionDesc = isModerate
+    ? getI18nText('RAIN_GUSTS_NEARBY', 'Rain & gusty winds expected nearby')
+    : getI18nText('HEAVY_RAIN_NEARBY', 'Heavy rain expected nearby');
+  const safetyTips = isModerate
+    ? 'Moderate atmospheric circulation detected. Keep umbrella ready, secure lightweight outdoor items, and monitor official forecasts.'
+    : 'Severe low pressure system active in this region. Expect heavy rains and sudden squalls. Fishermen must avoid venturing into deep sea. Secure doors and windows.';
+
+  return `
+    <div class="plain-safety-popup">
+      <div class="popup-header-row">
+        <span class="popup-badge ${isModerate ? 'badge-moderate' : 'badge-severe'}">
+          ${isModerate ? 'WATCH // MODERATE' : 'WARNING // SEVERE'}
+        </span>
+        <span style="font-size:10px; color:#f0b3b2; font-weight:700;">IMD BULLETIN</span>
+      </div>
+      <div class="popup-title">${escapeHtml(overlay.name || heading)}</div>
+      <div class="popup-action-guide ${isModerate ? 'guide-moderate' : ''}">
+        <strong>${escapeHtml(actionPrompt)}</strong>: ${escapeHtml(captionDesc)}
+      </div>
+      <div class="popup-detail-text">
+        ${escapeHtml(safetyTips)}
+      </div>
+      <div class="popup-footer-source">
+        <span>STATUS: ACTIVE HAZARD</span>
+        <span style="color:#00FF41;">SAFETY ADVISORY</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Creates Marker Type 2: Active Rainfall / Thunderstorm Warning (Leaflet L.divIcon)
+ * Clean, icon-only 32px circular badge with Tabler rain-cloud icon.
+ * No floating text, no radial glow bleed. Opens popup on click.
+ */
+function createRainfallMarkerIcon(severityLevel = 'severe') {
+  const isModerate = severityLevel === 'moderate';
+  const html = `
+    <div class="marker-badge-icon-only marker-type-rainfall severity-${isModerate ? 'moderate' : 'severe'}" role="button" aria-label="Active Rainfall Warning" tabindex="0">
+      <i class="ti ti-cloud-rain" aria-hidden="true">
+        ${TABLER_CLOUD_RAIN_SVG}
+      </i>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: 'clean-marker-div-icon',
+    html: html,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18],
+  });
+}
+
+function createRainfallPopupContent(alert, severityLevel = 'severe') {
+  const isModerate = severityLevel === 'moderate';
+  const heading = getI18nText('THUNDERSTORM_WARNING', 'Thunderstorm & Rain Alert');
+  const actionPrompt = isModerate
+    ? getI18nText('STAY_ALERT', 'Stay alert')
+    : getI18nText('MOVE_TO_SAFETY', 'Move to safety now');
+  const captionDesc = isModerate
+    ? getI18nText('RAIN_GUSTS_NEARBY', 'Rain & gusty winds expected nearby')
+    : getI18nText('HEAVY_RAIN_NEARBY', 'Heavy rain expected nearby');
+  const safetyTips = isModerate
+    ? 'Thunderstorm and rainfall activity forecasted. Stay away from isolated trees and open fields. Monitor road conditions.'
+    : 'Severe downpour & squalls imminent. Seek shelter inside sturdy buildings immediately. Stay away from power lines, tin sheds, and waterlogged paths.';
+
+  return `
+    <div class="plain-safety-popup">
+      <div class="popup-header-row">
+        <span class="popup-badge ${isModerate ? 'badge-moderate' : 'badge-severe'}">
+          ${isModerate ? 'NOWCAST // MODERATE' : 'NOWCAST // SEVERE'}
+        </span>
+        <span style="font-size:10px; color:#f0b3b2; font-weight:700;">SOURCE: ${escapeHtml(alert.source || 'IMD')}</span>
+      </div>
+      <div class="popup-title">${escapeHtml(alert.title || heading)}</div>
+      <div class="popup-action-guide ${isModerate ? 'guide-moderate' : ''}">
+        <strong>${escapeHtml(actionPrompt)}</strong>: ${escapeHtml(captionDesc)}
+      </div>
+      <div class="popup-detail-text">
+        ${escapeHtml(safetyTips)}
+      </div>
+      <div class="popup-footer-source">
+        <span>TIME: RECENT NOWCAST</span>
+        <span style="color:#00FF41;">PUBLIC SAFETY MODE</span>
+      </div>
+    </div>
+  `;
+}
 
 function updateGeospatialLayer(locationData, alertsList, synopticOverlays) {
   if (!state.map) return;
 
   state.currentAlerts = alertsList || [];
+  state.lastLocationData = locationData || state.lastLocationData;
+  state.lastSynopticOverlays = synopticOverlays || state.lastSynopticOverlays || [];
   state.alertMarkersMap = new Map();
 
   let centerLat = 22.5726;
   let centerLon = 88.3639; // Default/fallback
   let hasValidCoords = false;
 
-  // 1. Task 1: Re-center map and flyTo user coordinates when available in ChatResponse.location
+  // 1. Re-center map and flyTo user coordinates when available in ChatResponse.location
   if (locationData && locationData.latitude != null && locationData.longitude != null) {
     centerLat = parseFloat(locationData.latitude);
     centerLon = parseFloat(locationData.longitude);
@@ -200,12 +630,17 @@ function updateGeospatialLayer(locationData, alertsList, synopticOverlays) {
   // Sync Logic: Anchor and reposition the Geospatial Tactical Radar to user coordinates
   if (state.radarMarker) {
     state.radarMarker.setLatLng([centerLat, centerLon]);
+    if (state.mapMode === 'sat' && state.map.hasLayer(state.radarMarker)) {
+      state.map.removeLayer(state.radarMarker);
+    } else if (state.mapMode !== 'sat' && !state.map.hasLayer(state.radarMarker)) {
+      state.radarMarker.addTo(state.map);
+    }
   } else {
     initRadar(centerLat, centerLon);
   }
+  window.radarMarker = state.radarMarker;
 
   if (hasValidCoords) {
-    // Fly to user coordinates at zoom level 10 (Surgical GPS Centering)
     state.map.flyTo([centerLat, centerLon], 10, {
       animate: true,
       duration: 1.5,
@@ -256,24 +691,42 @@ function updateGeospatialLayer(locationData, alertsList, synopticOverlays) {
     `);
   }
 
-  // 2. Task 2: Synoptic Heatmap Visualization (Yellow to Red Heat Map over Bay of Bengal / Arabian Sea)
+  // 2. Clear layers before re-rendering
   if (state.synopticLayerGroup) {
     state.synopticLayerGroup.clearLayers();
   }
+  if (state.hazardLayerGroup) {
+    state.hazardLayerGroup.clearLayers();
+  }
 
-  const overlays = synopticOverlays || [];
-  overlays.forEach((overlay, idx) => {
+  // 3. Fix 2: Unified Hazard Deduplication & Priority Resolution
+  // If active rainfall is present for a region, render ONLY the rain-cloud marker!
+  // Suppress overlapping low-pressure markers for the same storm system.
+  const alerts = alertsList || state.currentAlerts || [];
+  const overlays = synopticOverlays || state.lastSynopticOverlays || [];
+
+  // Identify active rainfall alerts and their locations
+  const activeRainCoords = [];
+  alerts.forEach((alert) => {
+    if (!alert.is_historical && isRainfallAlert(alert)) {
+      if (alert.latitude != null && alert.longitude != null) {
+        activeRainCoords.push({
+          lat: parseFloat(alert.latitude),
+          lon: parseFloat(alert.longitude),
+        });
+      } else {
+        activeRainCoords.push({ lat: centerLat, lon: centerLon });
+      }
+    }
+  });
+
+  // Track placed marker locations to ensure no two markers ever overlap (< 35km)
+  const placedMarkers = [];
+
+  // Render Synoptic Low-Pressure Systems:
+  // Only render if it's a distant/developing system with NO overlapping active rainfall alert!
+  overlays.forEach((overlay) => {
     if (!overlay.bounds || overlay.bounds.length < 2) return;
-
-    // Tactical Bounding Box across the water body
-    const boundsRect = L.rectangle(overlay.bounds, {
-      className: 'synoptic-bound-rect',
-      weight: 1.5,
-      color: '#FF3131',
-      dashArray: '6, 6',
-      fillColor: '#FF5722',
-      fillOpacity: 0.05,
-    });
 
     const overlayCenter = (overlay.center && overlay.center.length === 2)
       ? overlay.center
@@ -282,118 +735,72 @@ function updateGeospatialLayer(locationData, alertsList, synopticOverlays) {
         (overlay.bounds[0][1] + overlay.bounds[1][1]) / 2,
       ];
 
-    // Radial Heatmap Effect: Large semi-transparent circle with Yellow-to-Red gradient (Heat/Dust style)
-    const heatAuraIcon = L.divIcon({
-      className: 'synoptic-svg-wrap',
-      html: `
-        <svg width="440" height="440" viewBox="0 0 440 440" class="synoptic-svg-aura" style="margin-left:-220px; margin-top:-220px;">
-          <defs>
-            <radialGradient id="heatAuraGrad_${idx}" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#FF1E1E" stop-opacity="0.65" />
-              <stop offset="26%" stop-color="#FF5722" stop-opacity="0.45" />
-              <stop offset="52%" stop-color="#FFA500" stop-opacity="0.25" />
-              <stop offset="78%" stop-color="#FFEA00" stop-opacity="0.12" />
-              <stop offset="100%" stop-color="#FFEA00" stop-opacity="0" />
-            </radialGradient>
-          </defs>
-          <!-- Thermal Heatmap Gradient Field -->
-          <circle cx="220" cy="220" r="210" fill="url(#heatAuraGrad_${idx})" />
-          <!-- Outer Tropospheric Isobars -->
-          <circle cx="220" cy="220" r="150" stroke="#FFA500" stroke-width="1.5" stroke-dasharray="8,6" fill="none" class="aura-rotate-slow" opacity="0.65" />
-          <!-- Mid-Level Cyclonic Circulation Ring -->
-          <circle cx="220" cy="220" r="95" stroke="#FF5722" stroke-width="1.8" stroke-dasharray="6,4" fill="none" class="aura-rotate-slow" opacity="0.8" />
-          <!-- Central Low-Pressure Eye Core -->
-          <circle cx="220" cy="220" r="40" stroke="#FF1E1E" stroke-width="2" fill="#FF1E1E" fill-opacity="0.45" class="aura-pulse-glow" />
-          <text x="220" y="224" text-anchor="middle" fill="#FFFFFF" font-family="'JetBrains Mono',monospace" font-size="9" font-weight="800" letter-spacing="0.5">
-            [${escapeHtml((overlay.type || 'LOW-PRESSURE').toUpperCase())}]
-          </text>
-        </svg>
-      `,
-      iconSize: [0, 0],
-      iconAnchor: [0, 0],
-    });
+    // Check if this system overlaps with an active rainfall alert for that region (< 120km)
+    const overlapsWithRainfall = activeRainCoords.some(
+      (c) => getDistanceKm(overlayCenter[0], overlayCenter[1], c.lat, c.lon) < 120
+    );
+
+    // If active rainfall is present at that location, the rain-cloud marker takes precedence!
+    if (overlapsWithRainfall) {
+      return; // Skip duplicate low-pressure marker for this storm system
+    }
+
+    // Check if already placed another marker at this exact position
+    const isTooClose = placedMarkers.some(
+      (p) => getDistanceKm(overlayCenter[0], overlayCenter[1], p.lat, p.lon) < 35
+    );
+    if (isTooClose) return;
+
+    const sevStr = (overlay.severity || '').toLowerCase();
+    const severityLevel = (sevStr.includes('moderate') || sevStr.includes('yellow')) ? 'moderate' : 'severe';
+
+    const accessiblePressureIcon = createLowPressureMarkerIcon(severityLevel);
 
     const auraMarker = L.marker(overlayCenter, {
-      icon: heatAuraIcon,
+      icon: accessiblePressureIcon,
       interactive: true,
-      zIndexOffset: 100,
+      zIndexOffset: 250,
     });
 
-    const popupContent = `
-      <div class="world-monitor-popup" style="font-family:'JetBrains Mono',monospace; min-width:280px; max-width:320px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid #FF3131; padding-bottom:5px;">
-          <span style="color:#FF3131; font-weight:800; font-size:11px;">[SYNOPTIC SYSTEM OVERLAY]</span>
-          <span style="font-weight:800; font-size:9px; background:#160707; border:1px solid #FF3131; color:#FFEA00; padding:2px 6px; border-radius:2px;">
-            ${escapeHtml((overlay.type || 'LOW-PRESSURE').toUpperCase())}
-          </span>
-        </div>
-        <div style="color:#ffffff; font-weight:700; font-size:12.5px; margin-bottom:5px; line-height:1.35;">
-          ${escapeHtml(overlay.name || 'Synoptic Weather System')}
-        </div>
-        <div style="color:#cbebd0; font-size:10.5px; line-height:1.45; margin-bottom:8px;">
-          ${escapeHtml(overlay.description || 'System influence area over oceanic basin.')}
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:9px; color:#7fa886; border-top:1px dashed rgba(255,255,255,0.12); padding-top:4px;">
-          <span>GEO: [[${overlay.bounds[0].join(', ')}], [${overlay.bounds[1].join(', ')}]]</span>
-          <span style="color:#FFEA00; font-weight:700;">SEV: ${escapeHtml((overlay.severity || 'HIGH').toUpperCase())}</span>
-        </div>
-      </div>
-    `;
-
-    boundsRect.bindPopup(popupContent);
+    const popupContent = createLowPressurePopupContent(overlay, severityLevel);
     auraMarker.bindPopup(popupContent);
-
-    state.synopticLayerGroup.addLayer(boundsRect);
     state.synopticLayerGroup.addLayer(auraMarker);
+
+    placedMarkers.push({
+      lat: overlayCenter[0],
+      lon: overlayCenter[1],
+      type: 'pressure',
+      marker: auraMarker,
+    });
   });
 
-  // 3. Hazard Overlay: Draw hazards with visual distinction (Live Neon vs Ghostly Historical)
-  renderHazardMarkers(alertsList, centerLat, centerLon);
+  // 4. Render Hazard Alerts (Rainfall, Earthquakes, etc.)
+  renderHazardMarkers(alerts, centerLat, centerLon, placedMarkers);
 }
 
 /**
- * Renders tactical radar hazard markers into state.hazardLayerGroup.
- * Distinguishes Live/Current hazards (bright neon red/orange, pulsing animation)
- * from Historical records (dull/ghostly slate-cyan, 35% opacity, dashed border).
+ * Renders tactical radar hazard markers into state.hazardLayerGroup with strict deduplication.
+ * Exactly ONE marker per geographic hazard event. Icon-only by default.
  */
-function renderHazardMarkers(alertsList, centerLat = 22.5726, centerLon = 88.3639) {
+function renderHazardMarkers(alertsList, centerLat, centerLon, placedMarkers = []) {
   if (!state.map) return;
-  if (state.hazardLayerGroup) {
-    state.hazardLayerGroup.clearLayers();
-  }
   state.alertMarkersMap = new Map();
 
-  const alerts = alertsList || [];
-  alerts.forEach((alert, index) => {
+  if (centerLat != null && !isNaN(centerLat)) state.lastCenterLat = centerLat;
+  if (centerLon != null && !isNaN(centerLon)) state.lastCenterLon = centerLon;
+  const refLat = state.lastCenterLat || 22.5726;
+  const refLon = state.lastCenterLon || 88.3639;
+
+  const alerts = alertsList || state.currentAlerts || [];
+  alerts.forEach((alert) => {
     const isHistorical = Boolean(alert.is_historical);
     const sev = (alert.severity || '').toLowerCase();
 
-    // Visual Distinction: Live vs Ghostly Historical
-    let markerColor = '#FFAC1C'; // Orange default
-    let pulseClass = 'pulsing-marker pulsing-marker-orange';
-    let radius = 16;
-    let fillOpacity = 0.55;
-    let opacity = 1.0;
-    let weight = 2;
+    // Check if earthquake hazard
+    const isEarthquake = (alert.source && alert.source.toUpperCase() === 'USGS') ||
+                         (alert.title && alert.title.toLowerCase().includes('earthquake')) ||
+                         alert.magnitude != null;
 
-    if (isHistorical) {
-      markerColor = '#8892b0';
-      pulseClass = 'historical-hazard-marker';
-      radius = 10;
-      fillOpacity = 0.35;
-      opacity = 0.45;
-      weight = 1.2;
-    } else {
-      if (sev.includes('high') || sev.includes('extreme') || sev.includes('severe')) {
-        markerColor = '#FF3131'; // Red for High/Extreme
-        pulseClass = 'pulsing-marker pulsing-marker-red';
-      } else if (sev.includes('moderate')) {
-        markerColor = '#FFAC1C';
-        pulseClass = 'pulsing-marker pulsing-marker-orange';
-      }
-    }
-
-    // Precise Alert Geolocation: Prioritize alert.latitude and alert.longitude
     let alertLat = null;
     let alertLon = null;
 
@@ -401,74 +808,110 @@ function renderHazardMarkers(alertsList, centerLat = 22.5726, centerLon = 88.363
       alertLat = parseFloat(alert.latitude);
       alertLon = parseFloat(alert.longitude);
     } else {
-      const angle = (index * (2 * Math.PI / Math.max(alerts.length, 1))) + 0.3;
-      const distance = index === 0 ? 0.0 : (0.04 + (index * 0.02));
-      alertLat = centerLat + (Math.sin(angle) * distance);
-      alertLon = centerLon + (Math.cos(angle) * distance);
+      alertLat = refLat;
+      alertLon = refLon;
     }
 
-    const hazardCircle = L.circleMarker([alertLat, alertLon], {
-      radius: radius,
-      color: markerColor,
-      fillColor: markerColor,
-      fillOpacity: fillOpacity,
-      opacity: opacity,
-      weight: weight,
-      className: pulseClass,
-    });
+    const isRainAlert = !isHistorical && !isEarthquake && isRainfallAlert(alert);
+    const severityLevel = (sev.includes('moderate') || sev.includes('yellow')) ? 'moderate' : 'severe';
 
-    const sourceLabel = escapeHtml(alert.source || 'IMD');
-    const titleLabel = escapeHtml(alert.title || 'Meteorological Hazard');
-    const descLabel = escapeHtml(alert.description || 'Hazard condition reported in official bulletin.');
-    const sevLabel = (alert.severity || 'ALERT').toUpperCase();
-    const coordStr = `${alertLat.toFixed(2)}°, ${alertLon.toFixed(2)}°`;
-    const tagColor = isHistorical ? '#8892b0' : markerColor;
-    const statusFooter = isHistorical ? 'HISTORICAL RECORD // USGS ARCHIVE' : 'WORLD MONITOR // ACTIVE';
+    // Check if another marker is already placed within 35km of these coordinates
+    const duplicateIndex = placedMarkers.findIndex(
+      (p) => getDistanceKm(alertLat, alertLon, p.lat, p.lon) < 35
+    );
 
-    let timeBadge = '';
-    if (alert.occurred_at) {
-      try {
-        const d = new Date(alert.occurred_at);
-        const timeStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-        timeBadge = `<div style="font-size:9.5px; color:#8892b0; margin-bottom:5px;">TIMESTAMP: ${escapeHtml(timeStr)}</div>`;
-      } catch (e) {
-        timeBadge = `<div style="font-size:9.5px; color:#8892b0; margin-bottom:5px;">TIMESTAMP: ${escapeHtml(String(alert.occurred_at).slice(0, 19))}</div>`;
+    if (duplicateIndex !== -1) {
+      // If the already placed marker is a pressure marker, but this alert is active rainfall:
+      // active rainfall is the primary current hazard! Replace the pressure marker.
+      if (isRainAlert && placedMarkers[duplicateIndex].type === 'pressure') {
+        if (placedMarkers[duplicateIndex].marker) {
+          if (state.synopticLayerGroup) state.synopticLayerGroup.removeLayer(placedMarkers[duplicateIndex].marker);
+          if (state.hazardLayerGroup) state.hazardLayerGroup.removeLayer(placedMarkers[duplicateIndex].marker);
+        }
+        placedMarkers.splice(duplicateIndex, 1);
+      } else {
+        // Otherwise, skip placing an overlapping duplicate marker
+        return;
       }
     }
 
-    const popupHtml = `
-      <div class="world-monitor-popup" style="font-family:'JetBrains Mono',monospace; min-width:240px; max-width:300px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.18); padding-bottom:5px;">
-          <span style="color:${tagColor}; font-weight:800; font-size:11px; letter-spacing:0.5px;">[${isHistorical ? 'HISTORICAL' : sevLabel}]</span>
-          <span style="font-weight:800; font-size:10px; background:#000000; border:1px solid ${tagColor}; color:#ffffff; padding:2px 6px; border-radius:2px;">
-            <strong>SOURCE: ${sourceLabel}</strong>
-          </span>
-        </div>
-        <div style="color:#ffffff; font-weight:700; font-size:12px; margin-bottom:5px; line-height:1.35;">
-          ${titleLabel}
-        </div>
-        ${timeBadge}
-        <div style="color:#cbebd0; font-size:10.5px; line-height:1.4; margin-bottom:7px;">
-          ${descLabel}
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:9px; color:#7fa886; border-top:1px dashed rgba(255,255,255,0.12); padding-top:4px;">
-          <span>GEO: ${coordStr}</span>
-          <span style="color:${tagColor}; font-weight:700;">${statusFooter}</span>
-        </div>
-      </div>
-    `;
+    let hazardMarker;
 
-    hazardCircle.bindPopup(popupHtml);
-    state.alertMarkersMap.set(alert, hazardCircle);
+    if (isRainAlert) {
+      // ── Marker Type 2: Active Rainfall / Thunderstorm Warning ──
+      // Clean 32px solid circle badge with rain-cloud icon. Icon-only by default, popup on click!
+      const rainfallIcon = createRainfallMarkerIcon(severityLevel);
+      hazardMarker = L.marker([alertLat, alertLon], {
+        icon: rainfallIcon,
+        interactive: true,
+        zIndexOffset: 300,
+      });
+    } else if (isEarthquake) {
+      // Seismic Earthquake Marker
+      let pinColor = (alert.magnitude || 0) >= 5.0 ? '#FF3131' : '#FFAC1C';
+      hazardMarker = L.circleMarker([alertLat, alertLon], {
+        radius: isHistorical ? 6 : 9,
+        color: '#ffffff',
+        weight: 1.5,
+        fillColor: isHistorical ? '#8892b0' : pinColor,
+        fillOpacity: isHistorical ? 0.4 : 0.9,
+        className: isHistorical ? 'historical-hazard-marker' : 'seismic-epicenter-pin',
+      });
+    } else {
+      // General non-rain hazard (e.g. low-pressure / heatwave alert from IMD):
+      // Clean 32px solid circle badge with warning triangle icon!
+      const pressureIcon = createLowPressureMarkerIcon(severityLevel);
+      hazardMarker = L.marker([alertLat, alertLon], {
+        icon: pressureIcon,
+        interactive: true,
+        zIndexOffset: 250,
+      });
+    }
+
+    let popupHtml;
+    if (isRainAlert) {
+      popupHtml = createRainfallPopupContent(alert, severityLevel);
+    } else if (isEarthquake) {
+      const magStr = alert.magnitude != null ? `M${Number(alert.magnitude).toFixed(1)}` : '';
+      popupHtml = `
+        <div class="plain-safety-popup">
+          <div class="popup-header-row">
+            <span class="popup-badge ${alert.magnitude >= 5.0 ? 'badge-severe' : 'badge-moderate'}">
+              ${isHistorical ? 'HISTORICAL RECORD' : 'SEISMIC MONITOR'}
+            </span>
+            <span style="font-size:10px; color:#f0b3b2; font-weight:700;">USGS TELEMETRY</span>
+          </div>
+          <div class="popup-title">${escapeHtml(alert.title || 'Seismic Activity')} ${magStr}</div>
+          <div class="popup-detail-text">${escapeHtml(alert.description || 'Earthquake activity detected.')}</div>
+          <div class="popup-footer-source">
+            <span>SOURCE: USGS</span>
+            <span style="color:#00FF41;">SEISMIC FEED</span>
+          </div>
+        </div>
+      `;
+    } else {
+      popupHtml = createLowPressurePopupContent(alert, severityLevel);
+    }
+
+    hazardMarker.bindPopup(popupHtml);
+    state.alertMarkersMap.set(alert, hazardMarker);
 
     if (state.hazardLayerGroup) {
-      state.hazardLayerGroup.addLayer(hazardCircle);
+      state.hazardLayerGroup.addLayer(hazardMarker);
     }
+
+    placedMarkers.push({
+      lat: alertLat,
+      lon: alertLon,
+      type: isRainAlert ? 'rainfall' : (isEarthquake ? 'earthquake' : 'pressure'),
+      marker: hazardMarker,
+    });
   });
 }
 
 // Alias updateMap for backwards compatibility
 const updateMap = updateGeospatialLayer;
+window.updateMap = updateMap;
 
 function flyToHazard(alert) {
   if (!state.map || !alert) return;
@@ -1128,14 +1571,22 @@ async function executeChatRequest(queryText) {
   appendUserMessage(queryText);
   elements.queryInput.value = '';
 
+  // 1. Every time a user sends a message, push { role: 'user', content: query } to chatHistory
+  chatHistory.push({ role: 'user', content: queryText });
+  if (chatHistory.length > 6) {
+    chatHistory = chatHistory.slice(-6);
+  }
+
   const loadingIndicator = appendSystemLoading();
 
-  // Construct request payload strictly matching ChatRequest schema
+  // Construct request payload strictly matching ChatRequest schema (with conversational history)
   const payload = {
     query: queryText,
     language: elements.languageSelect ? elements.languageSelect.value : 'en',
     channel: state.isVoiceMode ? 'voice' : 'web',
     location: buildLocationPayload(),
+    scientific_mode: state.mapMode === 'sat',
+    history: chatHistory.slice(-6),
   };
 
   // Reset voice mode flag after payload prepared
@@ -1158,6 +1609,14 @@ async function executeChatRequest(queryText) {
 
     const data = await response.json();
     loadingIndicator.remove();
+
+    // 2. Every time the AI responds, push { role: 'assistant', content: bot_reply } to chatHistory
+    if (data.bot_reply) {
+      chatHistory.push({ role: 'assistant', content: data.bot_reply });
+      if (chatHistory.length > 6) {
+        chatHistory = chatHistory.slice(-6);
+      }
+    }
 
     if (data.detected_language && elements.languageSelect && elements.languageSelect.value === 'auto') {
       const hasOpt = Array.from(elements.languageSelect.options).some(o => o.value === data.detected_language);
@@ -1434,7 +1893,14 @@ function setupVoiceInput() {
               applyLocalization(lockedLang);
             }
           }
-
+          // Push voice query and response to chatHistory for seamless continuity
+          chatHistory.push({ role: 'user', content: userText });
+          if (data.bot_reply) {
+            chatHistory.push({ role: 'assistant', content: data.bot_reply });
+          }
+          if (chatHistory.length > 6) {
+            chatHistory = chatHistory.slice(-6);
+          }
 
           // 2. Cache telemetry state for temporal analysis and emergency triggers
           state.lastWeatherData = data.weather;
@@ -1724,6 +2190,13 @@ function applyLocalization(langCode) {
 if (elements.languageSelect) {
   elements.languageSelect.addEventListener('change', (e) => {
     applyLocalization(e.target.value);
+    if (state.map && (state.currentLocation || state.lastLocationData || state.currentAlerts || state.lastSynopticOverlays)) {
+      updateGeospatialLayer(
+        state.lastLocationData || state.currentLocation,
+        state.currentAlerts,
+        state.lastSynopticOverlays
+      );
+    }
   });
 }
 

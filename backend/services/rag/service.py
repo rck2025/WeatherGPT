@@ -32,14 +32,50 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_DIR / ".env")
 
 # ------------------------------------------------------------------
+# CONVERSATIONAL AI & ADAPTIVE PERSONA INSTRUCTIONS
+# ------------------------------------------------------------------
+CONVERSATIONAL_INSTRUCTIONS = """[CONVERSATIONAL AI ARCHITECTURE: THREAD-BASED MEMORY & ADAPTIVE PERSONA]
+You are WeatherGPT, a stateful Conversational Meteorological Assistant.
+
+TASK 1: MULTI-TURN MEMORY INTEGRATION & PRONOUN RESOLUTION
+- You maintain Thread-Based Memory across turns via CONVERSATION_HISTORY.
+- Resolve pronouns such as 'It', 'There', 'That', 'Tomorrow' using the last 3 messages in CONVERSATION_HISTORY.
+- Example: If the user previously asked 'Weather in Delhi?' and now asks 'Is it safe there tomorrow?', understand that 'there' refers to 'Delhi' and evaluate conditions using the TOMORROW forecast for Delhi.
+
+TASK 2: ADAPTIVE RESPONSE LENGTH & LOGIC
+1. Small Talk / Pleasantries: If the user says 'Hi', 'Hello', 'Thanks', 'Thank you', respond briefly and warmly (1-2 sentences). Do NOT trigger a full weather report or unprompted telemetry.
+2. Ambiguity Handling: If a user asks a vague question (e.g., 'Will it rain?', 'What is the temperature?') without a specified city, and no city is established in CONVERSATION_HISTORY, Stop and Ask a Clarifying Question (e.g., 'Which city are you asking about? Please tell me your location so I can give you an accurate forecast.') instead of guessing.
+3. Precision Queries: If the user asks a technical or in-depth question, provide the full data block with sources and confidence scores.
+4. Concise Mode: Match the response length to the question. A simple question gets a 1-sentence answer. A complex analysis gets a full report.
+
+TASK 3: PROACTIVE SAFETY INTERJECTIONS
+- Even if the user is just casually chatting or saying greeting/thanks, if you see a RED ALERT in the live data or a LIGHTNING STRIKE nearby, you must proactively warn them first:
+  'By the way, before we continue, I must alert you that a severe storm is approaching your sector. [Provide brief alert details and safety actions].'
+  Then proceed with the conversational response.
+
+TASK 4: REFERENCE RESOLUTION
+- Always ground references ('there', 'then', 'that day', 'yesterday') against the preceding 3 turns in CONVERSATION_HISTORY."""
+
+# ------------------------------------------------------------------
 # INTENT-FIRST RAG TEMPLATE (Query-First Architecture)
 # ------------------------------------------------------------------
-template = """[SYSTEM: MOES WEATHER-GPT ARCHITECTURE // PROBABILISTIC NOWCAST & RADAR SPECIALIST]
+template = """[ROLE: HYPERLOCAL METEOROLOGICAL OFFICER]
+You are WeatherGPT. You answer the user's specific question DIRECTLY and IMMEDIATELY.
+
+RULES:
+1. NO GENERIC HEADERS: Do not start with "According to records for Kolkata". 
+2. LOCALITY: Use the phrase "in your area" instead of generic city generalizations (e.g., "in your area in Delhi" or "in your area").
+3. DIRECT ANSWER FIRST: 
+   - If asked "Is it raining?", start with "Yes, it is raining in your area" or "No, it is currently dry."
+   - If asked "When will it stop?", start with "Rain is expected to stop in about [X] minutes."
+4. CONFLICT RESOLUTION: If the model says 0.0mm but the Ground Sensor (AWS) sees rain, apologize and say: "The model is lagging, but our local ground sensors detect active rain in your sector right now."
+
+[SYSTEM: MOES WEATHER-GPT ARCHITECTURE // PROBABILISTIC NOWCAST & RADAR SPECIALIST]
 You are a Time-Aware Meteorological Officer, Probabilistic Forecaster, and Tactical Nowcast Specialist for the Ministry of Earth Sciences.
 
 COMMAND: You are a probabilistic forecaster.
 1. NEVER say 'It will rain.' Use terms like 'Highly likely,' 'Strong possibility,' or 'Isolated showers expected.'
-2. SOURCE CONFLICT: If the NWP model says 'Dry' but the IMD Radar or AWS sees 'Rain', you MUST state the disagreement: 'Our numerical models show dry conditions, but local ground sensors are currently recording rainfall. Trust the local observational data.'
+2. SOURCE CONFLICT: If the NWP model says 'Dry' but the IMD Radar or AWS sees 'Rain', you MUST state the disagreement: 'The model is lagging, but our local ground sensors detect active rain in your sector right now.'
 3. CONFIDENCE: Assign a confidence score based on source alignment. If all sources agree, score is 0.95. If they conflict, score is 0.40.
 
 STRICT VALIDATION MANDATE:
@@ -54,7 +90,12 @@ YOU ARE FORBIDDEN FROM MIXING THESE TIME-ZONES.
 CRITICAL RULE: You must answer the specific USER_QUESTION provided below.
 Do not give a generic weather summary unless specifically asked for one.
 
+{conversational_instructions}
+
+{conversation_history}
+
 USER_QUESTION: {question}
+HYPERLOCAL_DATA: {hyperlocal_context}
 
 DATA SOURCES:
 0. OBSERVATIONAL_RADAR_MICROSCOPE (LIVE GROUND TRUTH & DOPPLER RADAR):
@@ -87,14 +128,14 @@ INSTRUCTIONS:
 - When referring to past rainfall, strictly label it as '{recorded_label}'. When referring to future forecast rainfall, strictly label it as '{expected_label}'.
 - PROBABILISTIC FORECASTER RULES:
   1. NEVER say 'It will rain.' Use terms like 'Highly likely,' 'Strong possibility,' or 'Isolated showers expected.'
-  2. SOURCE CONFLICT: If the NWP model says 'Dry' but the IMD Radar or AWS sees 'Rain', state the disagreement: 'Our numerical models show dry conditions, but local ground sensors are currently recording rainfall. Trust the local observational data.'
+  2. SOURCE CONFLICT: If the NWP model says 'Dry' but the IMD Radar or AWS sees 'Rain', state the disagreement: 'The model is lagging, but our local ground sensors detect active rain in your sector right now.'
   3. CONFIDENCE: Assign a confidence score based on source alignment. If all sources agree, score is 0.95. If they conflict, score is 0.40.
 - CONFIDENCE-BASED ROUTING & HONEST EXPERT PROTOCOL:
   1. Identify the 'Target Time' from the user's query (e.g. 1 minute, 15 minutes, 2 hours).
   2. For ultra-short queries (<= 5 minutes, e.g. 1 minute nowcast):
      - Prioritize OBSERVATIONAL_RADAR_MICROSCOPE and SENSOR_CONSENSUS above all numerical forecast models!
      - If local radar or AWS detects precipitation while the global NWP model predicts dry/0.0mm conditions, you MUST OVERRIDE the global model.
-     - Tell the user: 'While numerical NWP models predict dry conditions, local observational sensors indicate rain is active (Confidence: 95%). Seek shelter.'
+     - Tell the user: 'The model is lagging, but our local ground sensors detect active rain in your sector right now.'
      - CITE: 'SOURCE: IMD Doppler Weather Radar (DWR)' or 'SOURCE: api.imd.gov.in/v1/aws (IMD Automatic Weather Station)'
   3. For nowcast queries (e.g. 15 minutes to 3 hours):
      - Prioritize NOWCAST_MINUTELY_NWP data.
@@ -128,7 +169,12 @@ YOU ARE FORBIDDEN FROM MIXING THESE TIME-ZONES.
 CRITICAL RULE: You are reporting data for {requested_date}. Do NOT mention current observations (Kolkata 29.8°C). Use the past tense. Your header must read:
 METEOROLOGICAL ARCHIVE REPORT FOR {requested_date}
 
+{conversational_instructions}
+
+{conversation_history}
+
 USER_QUESTION: {question}
+HYPERLOCAL_DATA: {hyperlocal_context}
 
 HISTORICAL ARCHIVE DATA:
 {historical_data}
@@ -170,7 +216,12 @@ CRITICAL RULE: The user is asking about the PAST.
 5. Label any rainfall as '{recorded_label}'.
 6. CITE: 'Source: MoES Ground-Truth Sensors (AWS)'.
 
+{conversational_instructions}
+
+{conversation_history}
+
 USER_QUESTION: {question}
+HYPERLOCAL_DATA: {hyperlocal_context}
 
 GROUND_SENSOR_OBSERVATIONAL_DATA:
 {historical_data}
@@ -342,6 +393,52 @@ DISTRICT_CENTROIDS: dict[str, tuple[float, float]] = {
 }
 
 
+def extract_city_from_text(text: str) -> tuple[str | None, tuple[float, float] | None]:
+    """Extract known city/district from text using DISTRICT_CENTROIDS."""
+    if not text:
+        return None, None
+    text_lower = text.lower()
+    # Match longest city name first to prevent partial collisions (e.g. 'new delhi' before 'delhi')
+    for name in sorted(DISTRICT_CENTROIDS.keys(), key=lambda s: -len(s)):
+        pattern = r"\b" + re.escape(name) + r"\b"
+        if re.search(pattern, text_lower):
+            return name, DISTRICT_CENTROIDS[name]
+    return None, None
+
+
+def is_small_talk(query: str) -> tuple[bool, str]:
+    """Detect if query is small talk / pleasantry. Returns (is_small_talk, kind)."""
+    if not query:
+        return False, ""
+    q = query.strip().lower().rstrip("!?.")
+    greetings = {"hi", "hello", "hey", "good morning", "good afternoon", "good evening", "namaste", "halo", "helo"}
+    thanks = {"thanks", "thank you", "thx", "thank you so much", "dhanyawad", "shukriya", "thanks a lot", "many thanks"}
+    casual = {"how are you", "how are you doing", "what's up", "whats up", "who are you", "what can you do"}
+
+    if q in greetings or any(q == g or q.startswith(g + " ") for g in greetings):
+        return True, "greeting"
+    if q in thanks or any(q == t or q.startswith(t + " ") for t in thanks):
+        return True, "thanks"
+    if q in casual or any(q == c or q.startswith(c + " ") for c in casual):
+        return True, "casual"
+    return False, ""
+
+
+def is_vague_weather_query(query: str) -> bool:
+    """Detect if query is a vague weather question without location."""
+    if not query:
+        return False
+    q = query.strip().lower().rstrip("!?.")
+    vague_patterns = [
+        "will it rain", "is it raining", "will it rain today", "will it rain tomorrow",
+        "do i need an umbrella", "should i take an umbrella", "is it safe outside",
+        "is it safe", "is it hot", "is it cold", "what is the temperature", "weather report",
+        "how is the weather", "what is the weather", "kaisa mausam hai", "barish hogi kya",
+        "kya barish hogi", "weather today", "weather tomorrow"
+    ]
+    return q in vague_patterns or any(q == vp for vp in vague_patterns)
+
+
 def attach_alert_coordinates(
     alert: WeatherAlert,
     location: Location | None = None,
@@ -442,31 +539,67 @@ def detect_synoptic_overlays(
     has_bob = any(term in combined_corpus for term in bob_tokens)
     has_arabian = any(term in combined_corpus for term in arabian_tokens)
 
+    # Check if active localized rainfall warnings already cover the coastal landfall zone
+    has_coastal_bob_rain = any(
+        not getattr(a, "is_historical", False)
+        and any(t in f"{a.title} {a.description}".lower() for t in ["rain", "thunderstorm", "squall", "nowcast"])
+        and any(loc in f"{a.title} {a.description}".lower() for loc in ["kolkata", "bengal", "odisha", "andhra"])
+        for a in alerts
+    )
+
     # 1. Bay of Bengal Low Pressure System / Cyclonic Circulation
-    # Bounds: [[5, 80], [22, 95]] covers main formation area and East Coast trajectory
+    # Center kept in deep oceanic waters (13.5°N, 88.5°E) to represent the distant/developing system
     if (has_synoptic_feature and has_bob) or "bay of bengal" in combined_corpus or (has_synoptic_feature and not has_arabian):
         overlays.append({
             "name": "Bay of Bengal Low Pressure System (BOB-01)",
             "type": "low-pressure",
-            "bounds": [[5.0, 80.0], [22.0, 95.0]],
-            "center": [14.5, 87.5],
-            "severity": "High",
+            "bounds": [[5.0, 80.0], [20.0, 95.0]],
+            "center": [13.5, 88.5],
+            "severity": "High" if not has_coastal_bob_rain else "Moderate",
             "description": "IMD Synoptic Bulletin: Low Pressure System and Cyclonic Circulation active across Central & Northern Bay of Bengal.",
         })
 
     # 2. Arabian Sea Cyclonic Circulation
-    # Bounds: [[8, 62], [23, 76]] covers East-Central Arabian Sea and West Coast
+    # Center kept in deep Arabian Sea waters (15.5°N, 67.5°E)
     if (has_synoptic_feature and has_arabian) or "arabian sea" in combined_corpus:
         overlays.append({
             "name": "Arabian Sea Cyclonic Circulation (AS-01)",
             "type": "low-pressure",
-            "bounds": [[8.0, 62.0], [23.0, 76.0]],
-            "center": [15.5, 68.5],
+            "bounds": [[8.0, 62.0], [21.0, 75.0]],
+            "center": [15.5, 67.5],
             "severity": "Moderate",
             "description": "IMD Synoptic Bulletin: Upper Air Cyclonic Circulation over East-Central Arabian Sea.",
         })
 
-    return overlays
+    import math
+
+    def dist_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+            return 999999.0
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+        return 6371.0 * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+
+    # Fix 2: One marker per hazard. If an active rainfall alert is already flagged for that exact
+    # sector (< 120km), suppress the pressure overlay because active precipitation is the primary hazard.
+    filtered_overlays: list[dict[str, Any]] = []
+    for ov in overlays:
+        c = ov.get("center")
+        if not c or len(c) < 2:
+            filtered_overlays.append(ov)
+            continue
+        collides_with_rain = any(
+            not getattr(a, "is_historical", False)
+            and any(t in f"{a.title} {a.description}".lower() for t in ["rain", "thunderstorm", "squall", "nowcast", "precipitation"])
+            and a.latitude is not None and a.longitude is not None
+            and dist_km(c[0], c[1], float(a.latitude), float(a.longitude)) < 120.0
+            for a in alerts
+        )
+        if not collides_with_rain:
+            filtered_overlays.append(ov)
+
+    return filtered_overlays
 
 
 class WeatherGPTBrain:
@@ -658,6 +791,84 @@ class WeatherGPTBrain:
                 "synoptic_overlays": fallback_overlays,
             }
 
+        # Multi-Turn History formatting from request.history
+        raw_history = getattr(request, "history", []) or []
+        history_lines = []
+        for msg in raw_history[-6:]:
+            if isinstance(msg, dict):
+                r_label = "User" if msg.get("role", "user").lower() == "user" else "Assistant"
+                c_text = str(msg.get("content", "")).strip()
+                if c_text and "SYSTEM_STATUS_PROBE" not in c_text:
+                    history_lines.append(f"{r_label}: {c_text}")
+        conversation_history_text = "CONVERSATION_HISTORY:\n" + "\n".join(history_lines) if history_lines else "CONVERSATION_HISTORY: None (Initial turn)"
+
+        # Check for severe warnings (Red Alert or Lightning) in response_alerts
+        has_severe_warning = any(
+            (getattr(a, "severity", "") or "").lower() in ("critical", "extreme", "red", "high")
+            or getattr(a, "lightning_active", False)
+            for a in response_alerts
+        )
+        warning_interjection = (
+            "By the way, before we continue, I must alert you that a severe storm is approaching your sector. "
+            "Please seek immediate shelter and adhere to official safety guidelines."
+        )
+
+        # Task 2.1: Small Talk / Pleasantries Intent
+        is_small_talk_flag, small_talk_kind = is_small_talk(request.query)
+        if is_small_talk_flag:
+            if small_talk_kind == "greeting":
+                reply = "Hello! I am WeatherGPT, your meteorological assistant. How can I help you with weather updates or disaster safety today?"
+            elif small_talk_kind == "thanks":
+                reply = "You're welcome! Stay safe, and let me know if you need any further weather updates."
+            else:
+                reply = "I am WeatherGPT, an AI meteorological specialist for the Ministry of Earth Sciences. How can I assist you today?"
+
+            if has_severe_warning:
+                reply = f"{warning_interjection}\n\n{reply}"
+
+            return {
+                "bot_reply": reply,
+                "alerts": response_alerts,
+                "sources": [],
+                "synoptic_overlays": [],
+                "confidence_score": 0.95,
+                "model_disagreement": False,
+            }
+
+        # Task 2.2: Ambiguity Handling Intent
+        query_city, _ = extract_city_from_text(request.query)
+        history_city = None
+        for msg in reversed(raw_history[-6:]):
+            if isinstance(msg, dict):
+                h_city, _ = extract_city_from_text(str(msg.get("content", "")))
+                if h_city:
+                    history_city = h_city
+                    break
+
+        is_loc_unspecified = (
+            query_city is None
+            and history_city is None
+            and (
+                location is None
+                or getattr(location, "is_default", False)
+                or getattr(getattr(request, "location", None), "is_default", False)
+                or (not getattr(location, "city", None) and not getattr(location, "district", None) and not getattr(location, "raw_text", None))
+            )
+        )
+
+        if is_vague_weather_query(request.query) and is_loc_unspecified:
+            clarify_reply = "Which city are you asking about? Please specify your location so I can check the latest radar and weather forecast for you."
+            if has_severe_warning:
+                clarify_reply = f"{warning_interjection}\n\n{clarify_reply}"
+            return {
+                "bot_reply": clarify_reply,
+                "alerts": response_alerts,
+                "sources": [],
+                "synoptic_overlays": [],
+                "confidence_score": 0.95,
+                "model_disagreement": False,
+            }
+
         weather_keywords = [
             "weather", "rain", "cyclone", "flood", "heat", "ndrf", "mausam", 
             "status", "situation", "report", "update", "condition", "warning", "alert",
@@ -676,6 +887,7 @@ class WeatherGPTBrain:
             or any(word in request.query.lower() for word in weather_keywords)
             or temporal_intent in ("past", "ANY_PAST")
             or is_minute_level_past
+            or history_city is not None
         )
 
         if not (has_location or is_weather_query):
@@ -1061,6 +1273,49 @@ class WeatherGPTBrain:
                 },
             )
 
+        # ── Step 3.6: Hyperlocal Precipitation Intelligence & Ground-Truth First Bridge ──
+        from backend.services.weather.precip_logic import analyze_precip_timing
+        from backend.services.weather.observational import get_hyperlocal_status
+        from backend.services.rag.brain import detect_precip_intent, PRECIP_QUERY_YESNO, PRECIP_QUERY_DURATION
+
+        precip_array: list[float] = []
+        time_array: list[Any] = []
+        if weather_data and getattr(weather_data, "minutely_15", None):
+            precip_array = [
+                float(getattr(item, "precipitation", 0.0) if getattr(item, "precipitation", None) is not None else (getattr(item, "rain", 0.0) or 0.0))
+                for item in weather_data.minutely_15
+            ]
+            time_array = [getattr(item, "timestamp", None) for item in weather_data.minutely_15]
+        elif weather_data and getattr(weather_data, "hourly", None):
+            precip_array = [float(getattr(item, "precipitation", 0.0) or 0.0) for item in weather_data.hourly[:12]]
+            time_array = [getattr(item, "time", None) for item in weather_data.hourly[:12]]
+        elif weather_data and weather_data.current:
+            precip_array = [float(weather_data.current.precipitation or 0.0)]
+
+        timing_status, minutes_to_event = analyze_precip_timing(precip_array, time_array)
+
+        # Ground-Truth First: Sensor (AWS) > Model
+        model_precip_first = precip_array[0] if precip_array else (float(weather_data.current.precipitation or 0.0) if weather_data and weather_data.current else 0.0)
+        aws_status_dict = {
+            "rainfall_last_10m": consensus_meta.get("aws_rainfall_10min_mm", 0.0),
+            "station_name": consensus_meta.get("station_name", "IMD Automatic Weather Station"),
+        }
+        is_hyperlocal_rain, hyperlocal_source = get_hyperlocal_status(loc_lat, loc_lon, model_precip_first, aws_status_dict)
+
+        if is_hyperlocal_rain:
+            source_tag = "AWS Sensor" if hyperlocal_source == "RECORDED_BY_SENSOR" else "GFS Model"
+            if timing_status == "STOPPING" and minutes_to_event > 0:
+                hyperlocal_context = f"Status: Raining, Source: {source_tag}, Stop Time: {minutes_to_event} mins"
+            else:
+                hyperlocal_context = f"Status: Raining, Source: {source_tag}"
+        else:
+            if timing_status == "STARTING" and minutes_to_event > 0:
+                hyperlocal_context = f"Status: Dry, Source: GFS Model, Start Time: {minutes_to_event} mins"
+            else:
+                hyperlocal_context = "Status: Dry, Source: GFS Model"
+
+        precip_intent = detect_precip_intent(request.query)
+
         if is_minute_level_past or temporal_intent in ("past", "ANY_PAST"):
             radar_data_text = "NONE (User query is asking about the PAST. Real-time forward radar sweeps suppressed)."
         elif time_offset_dyn is not None and 0 < time_offset_dyn < 30:
@@ -1114,16 +1369,20 @@ class WeatherGPTBrain:
             if is_minute_level_past:
                 prompt = past_nowcast_template.format(
                     question=request.query,
+                    hyperlocal_context=hyperlocal_context,
                     language_name=lang_name,
                     recorded_label=recorded_label,
                     expected_label=expected_label,
                     historical_data=historical_data_text,
                     archivist_command=archivist_command,
                     linguistic_constraint=linguistic_constraint,
+                    conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
+                    conversation_history=conversation_history_text,
                 ).strip()
             else:
                 prompt = historical_template.format(
                     question=request.query,
+                    hyperlocal_context=hyperlocal_context,
                     language_name=lang_name,
                     recorded_label=recorded_label,
                     expected_label=expected_label,
@@ -1132,10 +1391,13 @@ class WeatherGPTBrain:
                     context=context_text,
                     archivist_command=archivist_command,
                     linguistic_constraint=linguistic_constraint,
+                    conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
+                    conversation_history=conversation_history_text,
                 ).strip()
         else:
             prompt = template.format(
                 question=request.query,
+                hyperlocal_context=hyperlocal_context,
                 language_name=lang_name,
                 recorded_label=recorded_label,
                 expected_label=expected_label,
@@ -1148,6 +1410,8 @@ class WeatherGPTBrain:
                 consensus_data=consensus_data_text,
                 archivist_command=archivist_command,
                 linguistic_constraint=linguistic_constraint,
+                conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
+                conversation_history=conversation_history_text,
             ).strip()
 
         # Task 3: Dual-Model Fallback (gemini-3.6-flash -> gemini-1.5-flash)
@@ -1171,6 +1435,47 @@ class WeatherGPTBrain:
                     model_name,
                     exc,
                 )
+
+        # ── Step 5.5: Hyperlocal Direct Answer Enforcement ──
+        if precip_intent in (PRECIP_QUERY_YESNO, PRECIP_QUERY_DURATION) and bot_reply:
+            bot_reply_lower = bot_reply.lower()
+            if model_disagreement:
+                st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
+                st_rain = consensus_meta.get("aws_rainfall_10min_mm", 2.5)
+                bot_reply = (
+                    f"The model is lagging, but our local ground sensors detect active rain in your sector right now. "
+                    f"Numerical models indicate dry weather, however, the Automatic Weather Station at {st_name} "
+                    f"is reporting {st_rain:.1f}mm of rain. High confidence (95%) that rain is active in your sector."
+                )
+            elif precip_intent == PRECIP_QUERY_YESNO:
+                has_clutter = any(c in bot_reply_lower for c in ["temperature", "wind speed", "humidity", "feels like", "°c", "km/h"])
+                if has_clutter or not ("your area" in bot_reply_lower or "your sector" in bot_reply_lower or "dry" in bot_reply_lower or "raining" in bot_reply_lower):
+                    if is_hyperlocal_rain:
+                        if timing_status == "STOPPING" and minutes_to_event > 0:
+                            bot_reply = f"Yes, it is raining in your area. Rain is expected to stop in about {minutes_to_event} minutes."
+                        else:
+                            bot_reply = "Yes, it is raining in your area."
+                    else:
+                        if timing_status == "STARTING" and minutes_to_event > 0:
+                            bot_reply = f"No, it is currently dry in your area. Rain is expected to start in about {minutes_to_event} minutes."
+                        else:
+                            bot_reply = "No, it is currently dry in your area."
+            elif precip_intent == PRECIP_QUERY_DURATION:
+                has_clutter = any(c in bot_reply_lower for c in ["temperature", "wind speed", "humidity", "feels like", "°c", "km/h"])
+                if has_clutter or not ("stop" in bot_reply_lower or "start" in bot_reply_lower or "minute" in bot_reply_lower):
+                    if is_hyperlocal_rain:
+                        if timing_status == "STOPPING" and minutes_to_event > 0:
+                            bot_reply = f"Rain is expected to stop in about {minutes_to_event} minutes."
+                        else:
+                            bot_reply = "Rain is currently active in your area and expected to continue."
+                    else:
+                        if timing_status == "STARTING" and minutes_to_event > 0:
+                            bot_reply = f"Rain is expected to start in about {minutes_to_event} minutes."
+                        else:
+                            bot_reply = "Rain is not expected in your area in the near term; conditions remain stable and dry."
+        elif bot_reply and location and location.city and location.city.lower() in request.query.lower():
+            if location.city.lower() not in bot_reply.lower():
+                bot_reply = f"In {location.city} (your area): {bot_reply}"
 
         # ── Step 6: Intent-First Grounded Fallback (No Static Nowcast Override) ──
         if not bot_reply:
@@ -1340,26 +1645,58 @@ class WeatherGPTBrain:
                     )
 
             else:  # current weather
-                if model_disagreement:
-                    st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
-                    st_rain = consensus_meta.get("aws_rainfall_10min_mm", 2.5)
-                    parts.append(
-                        f"Numerical models indicate dry weather, however, the Automatic Weather Station at {st_name} "
-                        f"is reporting {st_rain:.1f}mm of rain. High confidence (95%) that rain is active in your sector."
-                    )
-                elif weather_data and weather_data.current:
-                    c = weather_data.current
-                    parts.append(
-                        f"CURRENT WEATHER for {city_label}: Temperature is {c.temperature}°C (feels like {c.feels_like}°C) "
-                        f"with {c.humidity}% humidity and wind speed of {c.wind_speed} km/h. SOURCE: Open-Meteo"
-                    )
-                nowcasts = [a for a in live_alerts if "nowcast" in a.title.lower() or "nowcast" in a.description.lower() or "3-hour" in a.description.lower()]
-                if nowcasts:
-                    parts.append(f"URGENT NOWCAST: {nowcasts[0].description} SOURCE: {nowcasts[0].source}")
-                elif live_alerts:
-                    parts.append(f"HAZARD STATUS: {live_alerts[0].description} SOURCE: {live_alerts[0].source}")
+                if precip_intent == PRECIP_QUERY_YESNO:
+                    if model_disagreement:
+                        st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
+                        st_rain = consensus_meta.get("aws_rainfall_10min_mm", 2.5)
+                        parts.append(
+                            f"The model is lagging, but our local ground sensors detect active rain in your sector right now. "
+                            f"Numerical models indicate dry weather, however, the Automatic Weather Station at {st_name} "
+                            f"is reporting {st_rain:.1f}mm of rain. High confidence (95%) that rain is active in your sector."
+                        )
+                    elif is_hyperlocal_rain:
+                        if timing_status == "STOPPING" and minutes_to_event > 0:
+                            parts.append(f"Yes, it is raining in your area. Rain is expected to stop in about {minutes_to_event} minutes.")
+                        else:
+                            parts.append("Yes, it is raining in your area.")
+                    else:
+                        if timing_status == "STARTING" and minutes_to_event > 0:
+                            parts.append(f"No, it is currently dry in your area. Rain is expected to start in about {minutes_to_event} minutes.")
+                        else:
+                            parts.append("No, it is currently dry in your area.")
+                elif precip_intent == PRECIP_QUERY_DURATION:
+                    if is_hyperlocal_rain:
+                        if timing_status == "STOPPING" and minutes_to_event > 0:
+                            parts.append(f"Rain is expected to stop in about {minutes_to_event} minutes.")
+                        else:
+                            parts.append("Rain is currently active in your area and expected to continue.")
+                    else:
+                        if timing_status == "STARTING" and minutes_to_event > 0:
+                            parts.append(f"Rain is expected to start in about {minutes_to_event} minutes.")
+                        else:
+                            parts.append("Rain is not expected in your area in the near term; conditions remain stable and dry.")
                 else:
-                    parts.append("SYNOPTIC STATUS: Low-pressure system monitoring active across South Asian basin. SOURCE: IMD")
+                    if model_disagreement:
+                        st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
+                        st_rain = consensus_meta.get("aws_rainfall_10min_mm", 2.5)
+                        parts.append(
+                            f"The model is lagging, but our local ground sensors detect active rain in your sector right now. "
+                            f"Numerical models indicate dry weather, however, the Automatic Weather Station at {st_name} "
+                            f"is reporting {st_rain:.1f}mm of rain. High confidence (95%) that rain is active in your sector."
+                        )
+                    elif weather_data and weather_data.current:
+                        c = weather_data.current
+                        parts.append(
+                            f"CURRENT WEATHER for {city_label}: Temperature is {c.temperature}°C (feels like {c.feels_like}°C) "
+                            f"with {c.humidity}% humidity and wind speed of {c.wind_speed} km/h. SOURCE: Open-Meteo"
+                        )
+                    nowcasts = [a for a in live_alerts if "nowcast" in a.title.lower() or "nowcast" in a.description.lower() or "3-hour" in a.description.lower()]
+                    if nowcasts:
+                        parts.append(f"URGENT NOWCAST: {nowcasts[0].description} SOURCE: {nowcasts[0].source}")
+                    elif live_alerts:
+                        parts.append(f"HAZARD STATUS: {live_alerts[0].description} SOURCE: {live_alerts[0].source}")
+                    else:
+                        parts.append("SYNOPTIC STATUS: Low-pressure system monitoring active across South Asian basin. SOURCE: IMD")
 
             bot_reply = "\n\n".join(parts)
 
@@ -1368,6 +1705,7 @@ class WeatherGPTBrain:
             st_name = consensus_meta.get("station_name", "Alipore (Kolkata)")
             st_rain = consensus_meta.get("aws_rainfall_10min_mm", 2.5)
             disagreement_banner = (
+                f"The model is lagging, but our local ground sensors detect active rain in your sector right now. "
                 f"Numerical models indicate dry weather, however, the Automatic Weather Station at {st_name} "
                 f"is reporting {st_rain:.1f}mm of rain. High confidence (95%) that rain is active in your sector."
             )

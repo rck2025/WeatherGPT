@@ -249,6 +249,30 @@ def get_radar_nowcast(
     }
 
 
+def get_hyperlocal_status(
+    lat: float,
+    lon: float,
+    model_precip: float,
+    aws_data: dict[str, Any],
+) -> tuple[bool, str]:
+    """
+    DETERMINISTIC RULE: AWS Ground Truth > Global Model.
+    """
+    # 1. Check local IMD Automatic Weather Station (AWS)
+    aws_rain = aws_data.get("rainfall_last_10m")
+    if aws_rain is None:
+        aws_rain = aws_data.get("aws_rainfall_10min_mm", 0.0)
+
+    if float(aws_rain or 0.0) > 0.1:
+        return True, "RECORDED_BY_SENSOR"
+
+    # 2. Fallback to model
+    if float(model_precip or 0.0) > 0.1:
+        return True, "PREDICTED_BY_MODEL"
+
+    return False, "CLEAR"
+
+
 # Singleton service export
 class ObservationalMicroscopeService:
     @staticmethod
@@ -262,6 +286,10 @@ class ObservationalMicroscopeService:
     @staticmethod
     def get_sensor_consensus(lat: float, lon: float, **kwargs) -> dict[str, Any]:
         return get_sensor_consensus(lat, lon, **kwargs)
+
+    @staticmethod
+    def get_hyperlocal_status(lat: float, lon: float, model_precip: float, aws_data: dict[str, Any]) -> tuple[bool, str]:
+        return get_hyperlocal_status(lat, lon, model_precip, aws_data)
 
 
 observational_service = ObservationalMicroscopeService()

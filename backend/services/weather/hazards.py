@@ -86,8 +86,9 @@ def get_realtime_hazards(
                     age_seconds = (now - occurred_at).total_seconds()
                     is_historical = age_seconds > 7200
 
-                    mag = props.get("mag", 0.0) or 0.0
+                    mag = float(props.get("mag", 0.0) or 0.0)
                     place = props.get("place", "Asia-Pacific Basin")
+                    visual_radius = round(mag * 5.0, 1) if mag > 0 else 15.0
                     hazards.append(
                         WeatherAlert(
                             title=f"Earthquake M{mag:.1f}",
@@ -98,6 +99,8 @@ def get_realtime_hazards(
                             longitude=round(lon, 4),
                             is_historical=is_historical,
                             occurred_at=occurred_at,
+                            magnitude=round(mag, 1),
+                            visual_radius=visual_radius,
                         )
                     )
             if hazards:

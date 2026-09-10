@@ -20,3 +20,6 @@ edge-tts
 imageio-ffmpeg
 deep-translator
 python-multipart
+
+# --- Satellite & Earth Observation ---
+earthengine-api>=1.4.0
