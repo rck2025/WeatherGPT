@@ -323,6 +323,7 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
                 location=location,
                 weather=weather,
                 alerts=merged_alerts,
+                icao_code=getattr(location, "icao_code", None),
                 sources=[
                     RAGDocument(content="IMD Meteorological nowcast bulletins and multi-hazard telemetry.", source="IMD", score=1.0),
                     RAGDocument(content="USGS Real-time Earthquake Hazards feed for South Asia / Indian Basin.", source="USGS", score=1.0),
@@ -365,6 +366,9 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
             chat_response.alerts = deduplicate_hazard_alerts(
                 (chat_response.alerts or []) + realtime_hazards
             )
+
+        if chat_response.location and not getattr(chat_response.location, "icao_code", None) and chat_response.icao_code:
+            chat_response.location.icao_code = chat_response.icao_code
 
         # ── Step 5: Linguistic Sovereignty Verification & Dual Text Display ──
         raw_ai_reply = chat_response.bot_reply

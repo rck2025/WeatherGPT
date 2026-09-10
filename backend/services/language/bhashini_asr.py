@@ -9,12 +9,28 @@ Marathi, Telugu, Malayalam, etc.) to outperform standard Whisper models on regio
 import base64
 import logging
 import os
+import sys
 import requests
 
 logger = logging.getLogger(__name__)
 
+
+def _terminal_log(msg: str) -> None:
+    """Safely print UTF-8 text with emojis across all terminal encodings."""
+    try:
+        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer:
+            sys.stdout.buffer.write((msg + "\n").encode("utf-8", errors="replace"))
+            sys.stdout.buffer.flush()
+        else:
+            print(msg)
+    except Exception:
+        try:
+            print(msg.encode("ascii", errors="replace").decode("ascii"))
+        except Exception:
+            pass
+
 BHASHINI_API_KEY = os.getenv("BHASHINI_API_KEY")
-BHASHINI_USER_ID = os.getenv("BHASHINI_USER_ID", "sih-weather-gpt")
+BHASHINI_USER_ID = os.getenv("BHASHINI_USER_ID", "135c3e6980-4b41-4cc5-91ce-dc3a356cf841")
 BHASHINI_INFERENCE_URL = os.getenv(
     "BHASHINI_INFERENCE_URL",
     "https://dhruva-api.bhashini.gov.in/services/inference/pipeline",
@@ -80,12 +96,19 @@ def bhashini_transcribe(audio_path: str, target_lang: str) -> dict | None:
             audio_b64 = base64.b64encode(af.read()).decode("utf-8")
 
         key = os.getenv("BHASHINI_API_KEY") or BHASHINI_API_KEY
+        user_id = os.getenv("BHASHINI_USER_ID") or BHASHINI_USER_ID or "135c3e6980-4b41-4cc5-91ce-dc3a356cf841"
         bhashini_lang = BHASHINI_ASR_LANG_MAP.get(norm_lang, norm_lang)
+
+        _terminal_log(f"💎 [BHASHINI ASR ACTIVE]: National-Standard ASR processing audio for {norm_lang}...")
+        logger.info("💎 [BHASHINI ASR ACTIVE]: National-Standard ASR processing audio for %s", norm_lang)
 
         headers = {
             "Accept": "*/*",
             "User-Agent": "WeatherGPT-BhashiniASR-SIH2026/1.0",
             "Authorization": key,
+            "ulcaApiKey": key,
+            "userID": user_id,
+            "userId": user_id,
             "Content-Type": "application/json",
         }
 

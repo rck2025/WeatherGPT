@@ -19,6 +19,9 @@ from backend.schemas import (
 from backend.services.rag.embeddings import get_embeddings
 from backend.services.rag.vector_store import load_vector_db, ingest_bulletins, DB_DIR, DATA_DIR
 from backend.services.rag.retriever import retrieve_documents
+from backend.services.weather.metar import decode_metar, generate_live_metar
+from backend.services.weather.aviation_logic import classify_flight_rules
+from backend.services.location.resolver import get_nearest_icao
 
 
 def get_retriever(*args, **kwargs):
@@ -159,24 +162,31 @@ You are WeatherGPT in TACTICAL AVIATION MODE.
 You provide official aeronautical meteorological briefings (METAR / TAF / SIGMET format).
 
 ATC OPERATIONAL DIRECTIVES:
-1. HARD-LOCK PERSONA: You MUST respond as an Air Traffic Control (ATC) Flight Dispatcher / Aerodrome Meteorologist to EVERY query, regardless of whether the user explicitly mentions flying.
-2. FLIGHT RULES CLASSIFICATION:
-   - Determine and state the flight category:
-     * VFR (Visual Flight Rules): Visibility >= 5.0 km AND Cloud Ceiling >= 3,000 ft (no low cloud cover / stable).
-     * MVFR (Marginal VFR): Visibility 3.0 - 5.0 km OR Ceiling 1,000 - 3,000 ft.
-     * IFR (Instrument Flight Rules): Visibility < 3.0 km OR Ceiling < 1,000 ft / active thunderstorm / CB clouds.
-3. PRIMARY AERODROME CONTEXT:
+1. HARD-LOCK PERSONA: You MUST respond as a Flight Meteorological Officer / Air Traffic Control (ATC) Dispatcher to EVERY query, regardless of whether the user explicitly mentions flying.
+2. SOVEREIGN ATC RULES:
+   - COMMAND: You are a Flight Meteorological Officer.
+   - Use decoded METAR/TAF data as the primary ground truth.
+   - Cite the specific ICAO / DGCA standard (e.g., 'In accordance with DGCA CAR Series M and ICAO Annex 3...').
+   - DO NOT DECLARE SAFETY. Never state 'It is safe to fly'. Use phrases like 'Conditions are categorized as...' or 'Decision support indicates...' to respect pilot-in-command authority.
+3. FLIGHT RULES CLASSIFICATION:
+   - State the flight category:
+     * VFR (Visual Flight Rules - Suitable): Visibility >= 5000m, Wind <= 35kt. Standard visual flight rules apply.
+     * MVFR (Marginal VFR - Caution): Visibility 1500m - 5000m. Maintain tactical awareness.
+     * IFR (Instrument Flight Rules - LVP Active): Visibility < 1500m, Wind > 35kt, Low Visibility Procedures (LVP), wind shear reported, or convective thunderstorm activity.
+4. PRIMARY AERODROME CONTEXT:
    - VISIBILITY: Primary metric (reported in Kilometers and Nautical Miles).
    - CLOUD CEILING / COVER: From weather_code and cloud cover (FEW, SCT, BKN, OVC, CAVOK).
-   - SURFACE WIND: Direction & Velocity in Knots (kt) or km/h, crosswind/gust hazard analysis.
+   - SURFACE WIND & SHEAR: Direction & Velocity in Knots (kt) or km/h, crosswind/gust hazard analysis, and wind shear status.
    - CONVECTIVE HAZARDS: Thunderstorms, Cumulonimbus (CB), lightning, microbursts, wind shear, icing.
-4. STYLE & TONE:
-   - Begin with a METAR-style SITUATIONAL STATUS (e.g. "METAR REPORT: VFR conditions stable." or "TACTICAL FLIGHT BRIEFING:").
+5. STYLE & TONE:
+   - Begin with a METAR-style SITUATIONAL STATUS (e.g. "METAR REPORT: {flight_rules_short} conditions stable." or "TACTICAL FLIGHT BRIEFING:").
    - Crisp, military/aviation standard, safety-critical, authoritative.
    - Example 1 (Casual "How's the day?"):
      "METAR REPORT: VFR conditions stable. Visibility {vis_km:.1f} km ({vis_nm:.1f} NM). Surface winds at {wind_speed_val:.0f} km/h. Cloud ceiling clear. No convective hazards for light aircraft."
    - Example 2 ("Is it safe to fly?"):
      "TACTICAL FLIGHT BRIEFING: Conditions are {flight_rules_short}. Visibility is {vis_km:.1f} km ({vis_nm:.1f} NM). Surface winds at {wind_speed_val:.0f} km/h. [Analyze turbulence, cloud ceiling, and convective hazards]."
+
+{priority_context}
 
 {conversational_instructions}
 
@@ -187,6 +197,12 @@ USER_QUESTION: {question}
 AERODROME TELEMETRY (PRIMARY FLIGHT DATA):
 {aviation_telemetry}
 
+AVIATION_RISK_ASSESSMENT (ICAO ANNEX 3 / DGCA CAR SERIES M):
+{aviation_risk_assessment}
+
+RAW METAR TELEMETRY:
+{raw_metar}
+
 OBSERVATIONAL RADAR & HAZARDS:
 {radar_data}
 
@@ -194,7 +210,9 @@ HYPERLOCAL_DATA: {hyperlocal_context}
 
 INSTRUCTIONS:
 - Directly answer the specific USER_QUESTION from an aeronautical perspective.
-- Highlight Visibility, Cloud Ceiling, Wind Shear, and Flight Rules (VFR / MVFR / IFR).
+- Highlight Visibility, Cloud Ceiling, Wind Shear, and Flight Rules ({flight_rules_short}).
+- Cite the applicable ICAO Annex 3 and DGCA CAR Series M standard.
+- Do NOT declare safety; use 'Conditions are categorized as...' or 'Decision support indicates...'.
 {linguistic_constraint}
 
 OFFICIAL ATC BRIEFING:"""
@@ -237,24 +255,35 @@ def build_atc_flight_briefing(
     weather_code: int | None,
     ceiling_desc: str,
     hazards: list[Any] | None = None,
+    metar_raw: str | None = None,
+    icao_code: str | None = None,
+    flight_advisory: str | None = None,
 ) -> str:
-    """Generate a crisp, tactical METAR / ATC flight briefing."""
+    """Generate a crisp, tactical METAR / ATC flight briefing adhering to ICAO/DGCA standards."""
     station = (location.city if location and location.city else "AERODROME SECTOR").upper()
     coords = f"[{location.latitude:.2f}°N, {location.longitude:.2f}°E]" if location and location.latitude else "[TACTICAL SECTOR]"
+    icao = icao_code or (getattr(location, "icao_code", None) if location else None) or "VECC"
 
     is_convective = (category == "IFR" or (weather_code in (95, 96, 99)))
     if is_convective:
-        hazard_note = "CAUTION: Convective cells / wind shear hazard. Instrument flight rules mandatory."
+        hazard_note = "CAUTION: Convective cells / wind shear hazard. Instrument flight rules mandatory. Low Visibility Procedures (LVP) active."
     else:
-        hazard_note = "Stable flight envelope. No convective hazards for light aircraft."
+        hazard_note = "Stable flight envelope. Standard visual flight rules apply per ICAO Annex 3 / DGCA CAR Series M minimums."
 
-    return (
-        f"METAR REPORT: {category} conditions stable for {station} {coords}.\n\n"
-        f"• Flight Visibility: {vis_km:.1f} km ({vis_nm:.1f} NM)\n"
-        f"• Surface Wind: {wind_kt:.0f} kt\n"
-        f"• Cloud Ceiling: {ceiling_desc}\n"
-        f"• Operational Advisory: {hazard_note}"
-    )
+    advisory = flight_advisory or hazard_note
+
+    lines = [
+        f"METAR REPORT: {category} conditions stable for {station} {coords} (ICAO: {icao}).\n",
+        f"• Flight Visibility: {vis_km:.1f} km ({vis_nm:.1f} NM)",
+        f"• Surface Wind: {wind_kt:.0f} kt",
+        f"• Cloud Ceiling: {ceiling_desc}",
+        f"• Operational Advisory: {advisory}",
+    ]
+    if metar_raw:
+        lines.append(f"• Raw METAR Telemetry: {metar_raw}")
+    lines.append("• Decision Support: Evaluated under DGCA CAR Series M and ICAO Annex 3. Conditions categorized per sovereign aviation rules. Final operational discretion rests with pilot-in-command.")
+
+    return "\n".join(lines)
 
 
 # ------------------------------------------------------------------
@@ -1492,22 +1521,72 @@ class WeatherGPTBrain:
 
         is_thunder = (w_code in (95, 96, 99) or consensus_meta.get("lightning_active", False) or consensus_meta.get("aws_rainfall_10min_mm", 0.0) > 5.0)
 
-        if is_thunder or vis_km < 3.0:
+        # ── Aviation Mode Aerodrome Lock & Risk Engine ──
+        icao_code = getattr(location, "icao_code", None) if location else None
+        airport_name = getattr(location, "airport_name", None) if location else None
+        if not icao_code:
+            loc_lat = location.latitude if (location and location.latitude is not None) else 22.57
+            loc_lon = location.longitude if (location and location.longitude is not None) else 88.36
+            loc_city = (location.city if location else None) or "Kolkata"
+            icao_code, airport_name = get_nearest_icao(loc_lat, loc_lon, loc_city)
+            if location:
+                location.icao_code = icao_code
+                location.airport_name = airport_name
+
+        has_wind_shear = bool(
+            "wind shear" in request.query.lower()
+            or "shear" in request.query.lower()
+            or (consensus_meta.get("lightning_active", False) and w_code in (95, 96, 99))
+        )
+
+        raw_metar = generate_live_metar(
+            icao_code=icao_code or "VECC",
+            weather_data=weather_data,
+            wind_shear=has_wind_shear,
+            override_vis_m=vis_m,
+        )
+        decoded_metar = decode_metar(raw_metar)
+        flight_rules_badge, flight_advisory = classify_flight_rules(decoded_metar)
+
+        if "IFR" in flight_rules_badge or is_thunder or vis_km < 3.0:
             flight_category = "IFR (Instrument Flight Rules - Low Visibility / Convective Hazard)"
             flight_rules_short = "IFR"
-        elif vis_km < 5.0:
+        elif "MVFR" in flight_rules_badge or vis_km < 5.0:
             flight_category = "MVFR (Marginal Visual Flight Rules)"
             flight_rules_short = "MVFR"
         else:
             flight_category = "VFR (Visual Flight Rules - Clear & Stable)"
             flight_rules_short = "VFR"
 
+        # Geospatial Prioritization (MWO Kolkata Lock)
+        if icao_code == "VECC":
+            priority_context = (
+                "PRIORITY CONTEXT: Use the specific observations from the Kolkata Meteorological Watch Office (VECC). "
+                "Official MWO Kolkata live HTML telemetry prioritized."
+            )
+            aviation_source_title = f"IMD Meteorological Watch Office (MWO) Kolkata [{icao_code}]"
+        else:
+            priority_context = (
+                f"PRIORITY CONTEXT: Use live aerodrome observation telemetry for {airport_name} ({icao_code})."
+            )
+            aviation_source_title = f"Aeronautical Meteorological Service [{icao_code}]"
+
+        aviation_risk_assessment = (
+            f"• ICAO ANNEX 3 / DGCA CAR STATUS: {flight_rules_badge}\n"
+            f"• OPERATIONAL ADVISORY: {flight_advisory}\n"
+            f"• WIND SHEAR STATUS: {'CRITICAL: Wind shear reported on approach/departure corridor!' if decoded_metar.get('wind_shear') else 'Negative / Not reported'}\n"
+            f"• CONVECTIVE STATUS: {'Active Thunderstorm / CB clouds in terminal sector' if decoded_metar.get('convective_hazard') else 'Nil significant convective clouds'}\n"
+            f"• AERODROME LOCK: {airport_name} ({icao_code})"
+        )
+
         aviation_telemetry = (
             f"• FLIGHT RULES CATEGORY: {flight_category}\n"
+            f"• AERODROME LOCK: {icao_code} // {airport_name}\n"
             f"• SURFACE VISIBILITY: {vis_km:.1f} KM ({vis_nm:.1f} NM) [CAVOK: {'YES' if vis_km >= 10.0 and not is_thunder else 'NO'}]\n"
-            f"• SURFACE WIND: {wind_kt:.1f} kt ({wind_spd:.1f} km/h)\n"
+            f"• SURFACE WIND: {decoded_metar.get('wind_dir', '000')}° at {decoded_metar.get('wind_speed_kts', int(wind_kt))} kt ({wind_spd:.1f} km/h)\n"
             f"• AERODROME TEMPERATURE: {temp_c:.1f}°C\n"
-            f"• ALTIMETER SETTING / QNH: 1013 hPa\n"
+            f"• ALTIMETER SETTING / QNH: Q{decoded_metar.get('qnh_hpa', 1013)} hPa\n"
+            f"• RAW METAR: {raw_metar}\n"
             f"• CLOUD CEILING / CODE: Code {w_code} ({'CB Convective activity active' if is_thunder else 'Ceiling unrestricted'})\n"
             f"• RUNWAY / SECTOR: {location.city.upper() if location and location.city else 'TERMINAL CONTROL AREA'}"
         )
@@ -1516,8 +1595,8 @@ class WeatherGPTBrain:
             sources.insert(
                 0,
                 {
-                    "content": aviation_telemetry,
-                    "source": "Aeronautical Meteorological Service (METAR/TAF)",
+                    "content": f"AERODROME TELEMETRY ({icao_code}):\n{aviation_telemetry}\n\nRISK ASSESSMENT:\n{aviation_risk_assessment}\n\nMETAR: {raw_metar}",
+                    "source": aviation_source_title,
                     "score": 1.0,
                 },
             )
@@ -1528,11 +1607,14 @@ class WeatherGPTBrain:
                 question=request.query,
                 hyperlocal_context=hyperlocal_context,
                 aviation_telemetry=aviation_telemetry,
+                aviation_risk_assessment=aviation_risk_assessment,
+                raw_metar=raw_metar,
                 radar_data=radar_data_text,
                 vis_km=vis_km,
                 vis_nm=vis_nm,
                 wind_speed_val=wind_spd,
                 flight_rules_short=flight_rules_short,
+                priority_context=priority_context,
                 conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
                 conversation_history=conversation_history_text,
                 linguistic_constraint=linguistic_constraint,
@@ -1674,6 +1756,9 @@ class WeatherGPTBrain:
                     weather_code=w_code,
                     ceiling_desc=get_ceiling_description(w_code),
                     hazards=response_alerts,
+                    metar_raw=raw_metar,
+                    icao_code=icao_code,
+                    flight_advisory=flight_advisory,
                 )
                 return {
                     "bot_reply": bot_reply,
@@ -1682,6 +1767,9 @@ class WeatherGPTBrain:
                     "synoptic_overlays": [],
                     "confidence_score": 0.98,
                     "model_disagreement": False,
+                    "icao_code": icao_code,
+                    "metar_raw": raw_metar,
+                    "flight_rules": flight_rules_badge,
                 }
 
             if temporal_intent in ("past", "ANY_PAST") or is_minute_level_past:
@@ -1936,7 +2024,7 @@ class WeatherGPTBrain:
             hist_record=hist_record,
         )
 
-        return {
+        res_dict = {
             "bot_reply": bot_reply,
             "alerts": [] if is_past_mode else response_alerts,
             "sources": sources,
@@ -1944,6 +2032,11 @@ class WeatherGPTBrain:
             "confidence_score": confidence_score,
             "model_disagreement": model_disagreement,
         }
+        if is_aviation_mode:
+            res_dict["icao_code"] = icao_code
+            res_dict["metar_raw"] = raw_metar
+            res_dict["flight_rules"] = flight_rules_badge
+        return res_dict
 
     def answer(
         self,

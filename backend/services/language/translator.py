@@ -5,6 +5,7 @@ Government of India (MoES / MeitY) ULCA NMT Pipeline with automatic Deep-Transla
 import logging
 import os
 import re
+import sys
 import requests
 from dotenv import load_dotenv
 
@@ -15,8 +16,23 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def _terminal_log(msg: str) -> None:
+    """Safely print UTF-8 text with emojis across all terminal encodings."""
+    try:
+        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer:
+            sys.stdout.buffer.write((msg + "\n").encode("utf-8", errors="replace"))
+            sys.stdout.buffer.flush()
+        else:
+            print(msg)
+    except Exception:
+        try:
+            print(msg.encode("ascii", errors="replace").decode("ascii"))
+        except Exception:
+            pass
+
 BHASHINI_API_KEY = os.getenv("BHASHINI_API_KEY")
-BHASHINI_USER_ID = os.getenv("BHASHINI_USER_ID", "sih-weather-gpt")
+BHASHINI_USER_ID = os.getenv("BHASHINI_USER_ID", "135c3e6980-4b41-4cc5-91ce-dc3a356cf841")
 BHASHINI_INFERENCE_URL = os.getenv(
     "BHASHINI_INFERENCE_URL",
     "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
@@ -50,9 +66,11 @@ def is_bhashini_active() -> bool:
 
 def bhashini_translate(text: str, source_lang: str = "en", target_lang: str = "hi") -> str:
     """
-    Direct translation via Bhashini ULCA NMT pipeline.
+    Direct translation via Bhashini National ULCA NMT pipeline.
+    Uses official Government of India (MeitY) Dhruva inference endpoint.
     """
     key = os.getenv("BHASHINI_API_KEY") or BHASHINI_API_KEY
+    user_id = os.getenv("BHASHINI_USER_ID") or BHASHINI_USER_ID or "135c3e6980-4b41-4cc5-91ce-dc3a356cf841"
     src = BHASHINI_LANG_MAP.get(source_lang, source_lang)
     tgt = BHASHINI_LANG_MAP.get(target_lang, target_lang)
 
@@ -60,6 +78,9 @@ def bhashini_translate(text: str, source_lang: str = "en", target_lang: str = "h
         "Accept": "*/*",
         "User-Agent": "WeatherGPT-BhashiniBridge-SIH2026/1.0",
         "Authorization": key,
+        "ulcaApiKey": key,
+        "userID": user_id,
+        "userId": user_id,
         "Content-Type": "application/json",
     }
 
@@ -103,7 +124,7 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "en") 
     Unified Tier-1 translation entry point:
     1. If source and target are identical or text is empty, returns immediately.
     2. If BHASHINI_API_KEY is detected:
-       - Displays 💎 [BHASHINI ACTIVE]
+       - Logs: 💎 [BHASHINI CORE ACTIVE]: National-Standard NMT engaged for {language_code}
        - Dispatches request to Bhashini National Language Gateway.
     3. If Bhashini fails or key is missing:
        - Seamlessly falls back to deep_translator (Google/MyMemory).
@@ -124,16 +145,15 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "en") 
     if src == tgt:
         return text
 
-
     if is_bhashini_active():
-        print(f"\n💎 [BHASHINI ACTIVE] Translating ({src} -> {tgt}) via National Bhashini Engine...")
-        logger.info("💎 [BHASHINI ACTIVE] Routing translation through Bhashini National Language Gateway (%s -> %s)", src, tgt)
+        _terminal_log(f"\n💎 [BHASHINI CORE ACTIVE]: National-Standard NMT engaged for {tgt}.")
+        logger.info("💎 [BHASHINI CORE ACTIVE]: National-Standard NMT engaged for %s (%s -> %s)", tgt, src, tgt)
         try:
             translated = bhashini_translate(text, source_lang=src, target_lang=tgt)
             if translated and translated.strip():
                 return translated
         except Exception as exc:
-            print(f"⚠️ [BHASHINI FALLBACK] Pipeline failed ({exc}); routing to deep_translator...")
+            _terminal_log(f"⚠️ [BHASHINI FALLBACK] Pipeline failed ({exc}); routing to deep_translator...")
             logger.warning("Bhashini translation failed (%s); seamlessly falling back to deep_translator.", exc)
     else:
         logger.debug("BHASHINI_API_KEY not set; using standard deep_translator pipeline.")

@@ -38,5 +38,15 @@
     "https://imdagrimet.gov.in/Services/NationalBulletin.php?language=English",
     "https://imdagrimet.gov.in/cropAdvisory_3.php",
     "https://agromet.imd.gov.in/"
-  ]
+  ],
+  "aviation_mode": {
+    "regulations": [
+      "https://www.dgca.gov.in/digigca-portal/?page=car",
+      "https://aim-india.aai.aero/eaip-india-ver-2-0"
+    ],
+    "bulletins": [
+      "https://mausam.imd.gov.in/imd_latest/contents/meteorological-services-civil-aviation.php",
+      "https://mwokolkata.imd.gov.in/"
+    ]
+  }
 }

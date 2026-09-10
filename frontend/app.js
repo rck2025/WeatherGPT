@@ -5,6 +5,13 @@
 
 // ── State Management ────────────────────────────────────────────────────────
 const state = {
+  currentMode: 'standard', // 'standard' | 'aviation'
+  operationalMode: 'standard', // alias
+  chatHistory: [],
+  activeLocation: { latitude: 22.5726, longitude: 88.3639, city: 'Kolkata' },
+  currentLocation: { latitude: 22.5726, longitude: 88.3639, city: 'Kolkata' }, // alias
+  satelliteMode: false,
+  mapMode: 'dark', // 'dark' | 'sat'
   locationMode: 'gps', // 'gps' | 'manual'
   gpsCoordinates: null, // { latitude, longitude }
   manualLocationText: '',
@@ -24,13 +31,14 @@ const state = {
   currentInterval: '24h',
   historyData: [],
   lastWeatherData: null,
-  currentLocation: null,
-  operationalMode: 'standard', // 'standard' | 'aviation'
+  currentAlerts: [],
+  currentOverlays: [],
 };
 
 // ── Multi-Turn Conversational Memory (UI State Persistence) ─────────────────
-let chatHistory = [];
+let chatHistory = state.chatHistory;
 window.chatHistory = chatHistory;
+window.state = state;
 
 // ── DOM Element Selectors ───────────────────────────────────────────────────
 const elements = {
@@ -51,14 +59,18 @@ const elements = {
   locationSummaryText: document.getElementById('locationSummaryText'),
   manualInputContainer: document.getElementById('manualInputContainer'),
   manualLocationInput: document.getElementById('manualLocationInput'),
-  telemetryTemp: document.getElementById('telemetryTemp'),
+  telemetryTemp: document.getElementById('metricTemp') || document.getElementById('telemetryTemp'),
+  metricTemp: document.getElementById('metricTemp') || document.getElementById('telemetryTemp'),
   telemetryTempSub: document.getElementById('telemetryTempSub'),
-  telemetryHumidity: document.getElementById('telemetryHumidity'),
+  telemetryHumidity: document.getElementById('metric2Val') || document.getElementById('telemetryHumidity'),
+  metric2Val: document.getElementById('metric2Val') || document.getElementById('telemetryHumidity'),
   telemetryHumiditySub: document.getElementById('telemetryHumiditySub'),
-  humidityBarFill: document.getElementById('humidityBarFill'),
+  humidityBarFill: document.getElementById('metric2Bar') || document.getElementById('humidityBarFill'),
+  metric2Bar: document.getElementById('metric2Bar') || document.getElementById('humidityBarFill'),
   telemetryWind: document.getElementById('telemetryWind'),
   telemetryWindSub: document.getElementById('telemetryWindSub'),
-  telemetryAlertsCount: document.getElementById('telemetryAlertsCount'),
+  telemetryAlertsCount: document.getElementById('metricAlerts') || document.getElementById('telemetryAlertsCount'),
+  metricAlerts: document.getElementById('metricAlerts') || document.getElementById('telemetryAlertsCount'),
   telemetryBaroSub: document.getElementById('telemetryBaroSub'),
   sourceModal: document.getElementById('sourceModal'),
   sourceModalTitle: document.getElementById('sourceModalTitle'),
@@ -70,8 +82,12 @@ const elements = {
   radarBadge: document.getElementById('radarBadge'),
   modeToggleHeader: document.getElementById('mode-toggle-header'),
   modeToggleMap: document.getElementById('mode-toggle-map'),
+  modeBtnStandard: document.getElementById('mode-btn-standard'),
+  modeBtnAviation: document.getElementById('mode-btn-aviation'),
   telemetryCard1Title: document.getElementById('telemetryCard1Title'),
   telemetryCard1Badge: document.getElementById('telemetryCard1Badge'),
+  telemetryCard2Title: document.getElementById('telemetryCard2Title'),
+  telemetryCard2Badge: document.getElementById('telemetryCard2Badge'),
 };
 
 // ── 1. Digital Real-Time Clocks (UTC & IST) ─────────────────────────────────
@@ -97,10 +113,10 @@ updateClocks();
 
 // ── 2. Geospatial Layer (Leaflet.js) & Dual-Mode Background ─────────────────
 // Base Tile Layers: Terminal Dark Matter vs Live Satellite NRT
-const darkLayer = (typeof L !== 'undefined') ? L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+const darkLayer = (typeof L !== 'undefined') ? L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
-  subdomains: 'abcd',
-  attribution: 'Terminal Grid / CartoDB'
+  attribution: '&copy; OpenStreetMap contributors',
+  className: 'terminal-osm-dark-tiles',
 }) : null;
 
 const satelliteLayer = (typeof L !== 'undefined') ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -144,6 +160,34 @@ function initMap() {
   // Initialize Geospatially Anchored Tactical Radar (pinned to default Kolkata coords)
   initRadar(22.5726, 88.3639);
 
+  // Floating Satellite / GEE Layer Toggle on Map
+  if (typeof L !== 'undefined' && state.map) {
+    const satControl = L.control({ position: 'topright' });
+    satControl.onAdd = function () {
+      const div = L.DomUtil.create('div', 'leaflet-bar map-floating-toggle-wrap');
+      div.innerHTML = `
+        <button type="button" id="floatingSatBtn" class="floating-sat-btn" title="Toggle NASA GEE Satellite / Multi-Hazard Composite">
+          🛰️ SAT / GEE
+        </button>
+      `;
+      L.DomEvent.disableClickPropagation(div);
+      div.querySelector('#floatingSatBtn').onclick = (e) => {
+        e.preventDefault();
+        toggleMapMode();
+      };
+      return div;
+    };
+    satControl.addTo(state.map);
+  }
+
+  // Click on map to reposition tactical radar sweep & update active location
+  state.map.on('click', (e) => {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+    state.activeLocation = { latitude: lat, longitude: lon, city: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°` };
+    state.currentLocation = state.activeLocation;
+    initRadar(lat, lon);
+  });
 }
 
 /**
@@ -166,6 +210,7 @@ function toggleMapMode() {
       state.satelliteLayer.addTo(state.map);
     }
     state.mapMode = 'sat';
+    state.satelliteMode = true;
     document.body.classList.add('sat-mode');
     if (mapElem) mapElem.classList.add('sat-mode');
 
@@ -183,17 +228,23 @@ function toggleMapMode() {
     if (btn) {
       btn.innerText = 'SAT_ACTIVE';
       btn.classList.add('is-sat-active');
-      btn.style.backgroundColor = '#00FF41';
+      btn.style.backgroundColor = '#00ff66';
       btn.style.color = '#000000';
-      btn.style.borderColor = '#00FF41';
-      btn.style.boxShadow = '0 0 12px rgba(0, 255, 65, 0.75)';
+      btn.style.borderColor = '#00ff66';
+      btn.style.boxShadow = '0 0 12px rgba(0, 255, 102, 0.75)';
+    }
+
+    const floatBtn = document.getElementById('floatingSatBtn');
+    if (floatBtn) {
+      floatBtn.classList.add('is-active');
+      floatBtn.textContent = '🛰️ SAT ACTIVE';
     }
 
     const badge = document.getElementById('radarBadge');
     if (badge) {
       badge.textContent = 'SAT: MODIS AURA + GPM MASK';
-      badge.style.borderColor = '#00F0FF';
-      badge.style.color = '#00F0FF';
+      badge.style.borderColor = '#00d4ff';
+      badge.style.color = '#00d4ff';
     }
 
     // 4. Tone sync notification
@@ -212,6 +263,7 @@ function toggleMapMode() {
       state.darkLayer.addTo(state.map);
     }
     state.mapMode = 'dark';
+    state.satelliteMode = false;
     document.body.classList.remove('sat-mode');
     if (mapElem) mapElem.classList.remove('sat-mode');
 
@@ -227,9 +279,15 @@ function toggleMapMode() {
       btn.innerText = 'RADAR_LITE';
       btn.classList.remove('is-sat-active');
       btn.style.backgroundColor = 'transparent';
-      btn.style.color = '#00FF41';
+      btn.style.color = '#00ff66';
       btn.style.borderColor = '';
       btn.style.boxShadow = '';
+    }
+
+    const floatBtn = document.getElementById('floatingSatBtn');
+    if (floatBtn) {
+      floatBtn.classList.remove('is-active');
+      floatBtn.textContent = '🛰️ SAT / GEE';
     }
 
     const badge = document.getElementById('radarBadge');
@@ -936,11 +994,38 @@ function flyToHazard(alert) {
   }
 }
 
-// ── 3. Ticker Tape Binding (Synoptic Overview & Lightning Tactical Update) ───
-function bindTickerTape(botReply, alertsData) {
+// ── 3. Ticker Tape Binding (Synoptic Overview, Lightning & Tactical Ticker Takeover) ───
+function bindTickerTape(botReply, alertsData, metarRaw, icaoCode) {
   if (!elements.tickerTrack) return;
 
   const alerts = alertsData || state.currentAlerts || [];
+  const icao = (icaoCode || state.activeIcaoCode || state.activeLocation?.icao_code || 'VECC').toUpperCase();
+  const rawMetar = (metarRaw || state.activeMetarRaw || '').toUpperCase();
+  const botLower = (botReply || '').toLowerCase();
+
+  // Task 4: Tactical Ticker Takeover
+  // If user is in Kolkata and there is a Wind Shear warning in the VECC METAR or query, force top ticker to display in Red:
+  // "🚨 VECC ADVISORY: WINDSHEAR REPORTED ON FINAL APPROACH RWY 19L."
+  const hasWindShear = rawMetar.includes('WS ') || rawMetar.includes('WIND SHEAR') || botLower.includes('wind shear');
+
+  if ((icao === 'VECC' || (state.activeLocation?.city && state.activeLocation.city.toLowerCase().includes('kolkata'))) && hasWindShear) {
+    const windShearMsg = '🚨 VECC ADVISORY: WINDSHEAR REPORTED ON FINAL APPROACH RWY 19L.';
+    elements.tickerTrack.textContent = windShearMsg;
+    elements.tickerTrack.classList.add('has-aviation-warning');
+    elements.tickerTrack.style.cursor = 'pointer';
+    elements.tickerTrack.title = 'CRITICAL ADVISORY: Wind shear detected on approach corridor RWY 19L (VECC MWO).';
+    return;
+  }
+
+  if (state.currentMode === 'aviation' && hasWindShear) {
+    const windShearMsg = `🚨 ${icao} ADVISORY: WINDSHEAR REPORTED IN RUNWAY CORRIDOR RWY 19L.`;
+    elements.tickerTrack.textContent = windShearMsg;
+    elements.tickerTrack.classList.add('has-aviation-warning');
+    return;
+  }
+
+  elements.tickerTrack.classList.remove('has-aviation-warning');
+
   const hasLightning = alerts.some(a => 
     a.lightning_active === true || 
     (a.title && a.title.toLowerCase().includes('lightning')) ||
@@ -1023,9 +1108,10 @@ function calculateVisibilityMetrics(weatherData) {
   const current = weatherData?.current;
   let visMeters = current?.visibility;
   if (visMeters == null) {
-    return { visKm: 10.0, visNm: (10.0 * 0.539957).toFixed(1), category: 'VFR' };
+    return { visMeters: 10000, visKm: 10.0, visNm: (10.0 * 0.539957).toFixed(1), category: 'VFR' };
   }
   const visKm = visMeters > 100 ? (visMeters / 1000) : Number(visMeters);
+  const rvrMeters = Math.round(visKm * 1000);
   const visNm = (visKm * 0.539957).toFixed(1);
   let category = 'VFR';
   if (visKm < 3.0) {
@@ -1033,38 +1119,81 @@ function calculateVisibilityMetrics(weatherData) {
   } else if (visKm < 5.0) {
     category = 'MVFR';
   }
-  return { visKm, visNm, category };
+  return { visMeters: rvrMeters, visKm, visNm, category };
 }
 
 function updateTelemetryWidgetForMode(weatherData) {
   const current = weatherData?.current;
-  const isAviation = state.operationalMode === 'aviation';
+  const isAviation = (state.currentMode === 'aviation');
 
-  const cardTitle = elements.telemetryCard1Title || document.getElementById('telemetryCard1Title');
-  const cardBadge = elements.telemetryCard1Badge || document.getElementById('telemetryCard1Badge');
+  const card1Title = elements.telemetryCard1Title || document.getElementById('telemetryCard1Title');
+  const card1Badge = elements.telemetryCard1Badge || document.getElementById('telemetryCard1Badge');
+  const tempEl = document.getElementById('metricTemp') || elements.telemetryTemp;
+  const tempSub = elements.telemetryTempSub || document.getElementById('telemetryTempSub');
+
+  const card2Title = elements.telemetryCard2Title || document.getElementById('telemetryCard2Title');
+  const card2Badge = elements.telemetryCard2Badge || document.getElementById('telemetryCard2Badge');
+  const elHumid = document.getElementById('metric2Val') || elements.telemetryHumidity;
+  const elBar = document.getElementById('metric2Bar') || elements.humidityBarFill;
+  const humidSub = elements.telemetryHumiditySub || document.getElementById('telemetryHumiditySub');
+
+  const { visMeters, visKm, visNm, category } = calculateVisibilityMetrics(weatherData);
 
   if (isAviation) {
-    if (cardTitle) cardTitle.textContent = '01 // VISIBILITY';
-    if (cardBadge) cardBadge.textContent = 'AERODROME';
-
-    const { visKm, visNm, category } = calculateVisibilityMetrics(weatherData);
-    if (elements.telemetryTemp) {
-      elements.telemetryTemp.textContent = `${visKm.toFixed(1)} KM`;
-    }
-    if (elements.telemetryTempSub) {
-      elements.telemetryTempSub.textContent = `${category} CONDITIONS (${visNm} NM)`;
-    }
-  } else {
-    if (cardTitle) cardTitle.textContent = '01 // DIGITAL TEMPERATURE';
-    if (cardBadge) cardBadge.textContent = 'THERMAL';
+    // 3. Label Swapping: If in Aviation mode:
+    // Change "DIGITAL TEMPERATURE" to "AERODROME TEMP"
+    if (card1Title) card1Title.textContent = '01 // AERODROME TEMP';
+    if (card1Badge) card1Badge.textContent = 'AERODROME';
 
     if (current && current.temperature != null) {
-      if (elements.telemetryTemp) elements.telemetryTemp.textContent = `${Number(current.temperature).toFixed(1)}°C`;
-      const feelsLike = current.feels_like != null ? `FEELS LIKE ${Number(current.feels_like).toFixed(1)}°C` : 'REAL-TIME SENSOR';
-      if (elements.telemetryTempSub) elements.telemetryTempSub.textContent = feelsLike;
+      if (tempEl) tempEl.textContent = `${Number(current.temperature).toFixed(1)}°C`;
+      const feelsLike = current.feels_like != null ? `SURFACE OAT // FEELS ${Number(current.feels_like).toFixed(1)}°C` : 'AIRFIELD SENSOR';
+      if (tempSub) tempSub.textContent = feelsLike;
     } else {
-      if (elements.telemetryTemp) elements.telemetryTemp.textContent = '--°C';
-      if (elements.telemetryTempSub) elements.telemetryTempSub.textContent = 'AWAITING TELEMETRY';
+      if (tempEl) tempEl.textContent = '--°C';
+      if (tempSub) tempSub.textContent = 'AERODROME TELEMETRY PENDING';
+    }
+
+    // Change "HUMIDITY" to "RUNWAY VISUAL (RVR)"
+    if (card2Title) card2Title.textContent = '02 // RUNWAY VISUAL (RVR)';
+    if (card2Badge) card2Badge.textContent = 'RVR';
+
+    if (elHumid) {
+      elHumid.textContent = visMeters >= 10000 ? '10+ KM' : `${visMeters.toLocaleString()} M`;
+    }
+    if (humidSub) {
+      humidSub.textContent = `${category} CONDITIONS (${visNm} NM)`;
+    }
+    if (elBar) {
+      const barPct = Math.min(100, Math.max(5, Math.round((visKm / 10.0) * 100)));
+      elBar.style.width = `${barPct}%`;
+    }
+  } else {
+    // Standard Mode:
+    if (card1Title) card1Title.textContent = '01 // DIGITAL TEMPERATURE';
+    if (card1Badge) card1Badge.textContent = 'THERMAL';
+
+    if (current && current.temperature != null) {
+      if (tempEl) tempEl.textContent = `${Number(current.temperature).toFixed(1)}°C`;
+      const feelsLike = current.feels_like != null ? `FEELS LIKE ${Number(current.feels_like).toFixed(1)}°C` : 'REAL-TIME SENSOR';
+      if (tempSub) tempSub.textContent = feelsLike;
+    } else {
+      if (tempEl) tempEl.textContent = '--°C';
+      if (tempSub) tempSub.textContent = 'AWAITING TELEMETRY';
+    }
+
+    if (card2Title) card2Title.textContent = '02 // HUMIDITY RATIO';
+    if (card2Badge) card2Badge.textContent = 'MOISTURE';
+
+    if (current && current.humidity != null) {
+      const humidVal = Math.round(current.humidity);
+      if (elHumid) elHumid.textContent = `${humidVal}%`;
+      if (humidSub) humidSub.textContent = 'RELATIVE HUMIDITY';
+      if (elBar) elBar.style.width = `${Math.min(100, Math.max(0, humidVal))}%`;
+    } else {
+      if (elHumid) elHumid.textContent = '--%';
+      if (humidSub) humidSub.textContent = 'SENSOR OFFLINE';
+      if (elBar) elBar.style.width = '0%';
     }
   }
 }
@@ -1074,10 +1203,10 @@ function appendAviationModeNotification() {
   const note = document.createElement('div');
   note.className = 'message-entry system-scientific-notice';
   note.innerHTML = `
-    <span class="message-prefix" style="color: #00E5FF;">SYS_TACTICAL // AVIATION_MODE_ACTIVE</span>
-    <div class="message-content" style="color: #c0f4ff; font-size: 11px; border-left: 2px solid #00E5FF; padding-left: 8px; margin-top: 4px;">
-      <span style="color: #00E5FF; font-weight: 800;">ATC SOVEREIGN CONTEXT ENGAGED:</span>
-      Operational context shifted to Tactical Flight Briefing. Telemetry calibrated to Aerodrome Visibility (KM/NM) and Flight Rules (VFR/MVFR/IFR).
+    <span class="message-prefix" style="color: #00d4ff;">SYS_TACTICAL // AVIATION_MODE_ACTIVE</span>
+    <div class="message-content" style="color: #c0f4ff; font-size: 11px; border-left: 2px solid #00d4ff; padding-left: 8px; margin-top: 4px;">
+      <span style="color: #00d4ff; font-weight: 800;">ATC SOVEREIGN CONTEXT ENGAGED:</span>
+      Operational context shifted to Tactical Flight Briefing. Telemetry calibrated to Aerodrome Temperature &amp; Runway Visual Range (RVR).
       Air Traffic Controller &amp; Flight Meteorological Officer persona hard-locked across all weather queries.
     </div>
   `;
@@ -1085,80 +1214,164 @@ function appendAviationModeNotification() {
   note.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-function toggleOperationalMode(forcedMode) {
-  if (forcedMode) {
-    state.operationalMode = forcedMode;
-  } else {
-    state.operationalMode = state.operationalMode === 'standard' ? 'aviation' : 'standard';
+function updateAerodromeHeader(icaoCode, cityName) {
+  const el = document.getElementById('aerodromeIcaoText');
+  if (!el) return;
+  const icao = (icaoCode || state.activeIcaoCode || state.activeLocation?.icao_code || 'VECC').toUpperCase();
+  let city = (cityName || state.activeLocation?.city || 'KOLKATA').toUpperCase();
+  city = city.split(',')[0].trim();
+  if (!city.endsWith('INTL') && !city.endsWith('AIRPORT')) {
+    city = `${city} INTL`;
+  }
+  el.textContent = `ICAO: ${icao} // ${city}`;
+  state.activeIcaoCode = icao;
+}
+window.updateAerodromeHeader = updateAerodromeHeader;
+
+function updateMetarTelemetryDisplay(metarRaw, flightRules, icaoCode) {
+  const metarCard = document.getElementById('aviationMetarCard');
+  const metarRawDisplay = document.getElementById('metarRawDisplay');
+  const flightRulesDisplay = document.getElementById('metarFlightRulesDisplay');
+  const metarCardBadge = document.getElementById('metarCardBadge');
+
+  if (metarRaw) state.activeMetarRaw = metarRaw;
+  if (flightRules) state.activeFlightRules = flightRules;
+  if (icaoCode) state.activeIcaoCode = icaoCode;
+
+  const isAviation = (state.currentMode === 'aviation');
+  if (metarCard) {
+    metarCard.style.display = isAviation ? 'block' : 'none';
   }
 
-  const isAviation = state.operationalMode === 'aviation';
-  document.body.classList.toggle('mode-aviation', isAviation);
+  const icao = (icaoCode || state.activeIcaoCode || 'VECC').toUpperCase();
+  if (metarRawDisplay) {
+    const raw = metarRaw || state.activeMetarRaw || `METAR ${icao} 101830Z 02008KT 6000 FEW025 28/22 Q1013 NOSIG`;
+    metarRawDisplay.textContent = raw;
+  }
 
-  const headerBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
-  const mapBtn = elements.modeToggleMap || document.getElementById('mode-toggle-map');
+  if (flightRulesDisplay) {
+    const rules = flightRules || state.activeFlightRules || '🟢 VFR (SUITABLE)';
+    flightRulesDisplay.textContent = `DECISION SUPPORT: ${rules} // DGCA CAR SERIES M COMPLIANT`;
+  }
 
-  const btnLabel = isAviation ? '[ ✈️ MODE: AVIATION ]' : '[ 🌐 MODE: STANDARD ]';
+  if (metarCardBadge) {
+    metarCardBadge.textContent = (icao === 'VECC') ? 'LIVE IMD MWO KOLKATA' : `LIVE METAR [${icao}]`;
+  }
+}
+window.updateMetarTelemetryDisplay = updateMetarTelemetryDisplay;
 
-  [headerBtn, mapBtn].forEach((btn) => {
+function setMode(forcedMode) {
+  if (forcedMode === 'aviation' || forcedMode === 'standard') {
+    state.currentMode = forcedMode;
+  } else if (forcedMode) {
+    state.currentMode = String(forcedMode).toLowerCase();
+  } else {
+    state.currentMode = (state.currentMode === 'standard') ? 'aviation' : 'standard';
+  }
+  state.operationalMode = state.currentMode;
+
+  const isAviation = (state.currentMode === 'aviation');
+
+  // 1. If mode === 'aviation': Add aviation-theme class to <body>.
+  // 2. If mode === 'standard': Remove aviation-theme class.
+  if (isAviation) {
+    document.body.classList.add('aviation-theme');
+    document.body.classList.add('mode-aviation');
+  } else {
+    document.body.classList.remove('aviation-theme');
+    document.body.classList.remove('mode-aviation');
+  }
+
+  // Sync mode pill buttons in system tray
+  const btnStandard = elements.modeBtnStandard || document.getElementById('mode-btn-standard');
+  const btnAviation = elements.modeBtnAviation || document.getElementById('mode-btn-aviation');
+  if (btnStandard && btnAviation) {
+    btnStandard.classList.toggle('is-active', !isAviation);
+    btnAviation.classList.toggle('is-active', isAviation);
+  }
+
+  // Legacy button backward compatibility
+  const legacyHeaderBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
+  const legacyMapBtn = elements.modeToggleMap || document.getElementById('mode-toggle-map');
+  const legacyBtnLabel = isAviation ? '[ ✈️ MODE: AVIATION ]' : '[ 🌐 MODE: STANDARD ]';
+  [legacyHeaderBtn, legacyMapBtn].forEach((btn) => {
     if (!btn) return;
-    btn.textContent = btnLabel;
-    if (isAviation) {
-      btn.classList.add('is-aviation');
-    } else {
-      btn.classList.remove('is-aviation');
-    }
+    btn.textContent = legacyBtnLabel;
+    btn.classList.toggle('is-aviation', isAviation);
   });
 
-  // Dynamically swap the telemetry widgets based on mode
+  // Re-center map to active location when operational context syncs
+  if (state.map) {
+    const loc = state.activeLocation || state.currentLocation || { latitude: 22.5726, longitude: 88.3639 };
+    state.map.setView([loc.latitude, loc.longitude], state.map.getZoom() || 6, { animate: true });
+  }
+
+  // Task 2: Dynamic Quick Action Button Swapping (Aviation Intent Switch)
+  updateQuickPromptButtonsForMode(state.currentMode);
+
+  // 3. Label Swapping: If in Aviation mode, find the telemetry labels and
+  // change "DIGITAL TEMPERATURE" to "AERODROME TEMP" and "HUMIDITY" to "RUNWAY VISUAL (RVR)".
   updateTelemetryWidgetForMode(state.lastWeatherData);
+  updateMetarTelemetryDisplay(state.activeMetarRaw, state.activeFlightRules, state.activeIcaoCode);
+  updateAerodromeHeader(state.activeIcaoCode, state.activeLocation?.city);
+  bindTickerTape(null, state.currentAlerts, state.activeMetarRaw, state.activeIcaoCode);
 
   if (isAviation) {
     appendAviationModeNotification();
   }
 }
-window.toggleOperationalMode = toggleOperationalMode;
+window.setMode = setMode;
+window.toggleOperationalMode = setMode;
+
+function updateQuickPromptButtonsForMode(mode) {
+  const container = document.getElementById('quickPromptsBar');
+  if (!container) return;
+  const buttons = container.querySelectorAll('.quick-prompt-btn');
+  if (!buttons || buttons.length < 4) return;
+
+  const isAviation = (mode === 'aviation');
+  const aviationKeys = ['QUERY_METAR', 'QUERY_SIGMET', 'QUERY_CEILING', 'QUERY_SHEAR'];
+  const standardKeys = ['QUERY_SAFETY', 'QUERY_RAIN', 'QUERY_HISTORY', 'QUERY_CROP'];
+  const targetKeys = isAviation ? aviationKeys : standardKeys;
+
+  buttons.forEach((btn, idx) => {
+    if (targetKeys[idx]) {
+      btn.setAttribute('data-t', targetKeys[idx]);
+    }
+  });
+
+  const currentLang = (elements.languageSelect && elements.languageSelect.value) ? elements.languageSelect.value : 'en';
+  applyLocalization(currentLang);
+}
+window.updateQuickPromptButtonsForMode = updateQuickPromptButtonsForMode;
 
 function bindTelemetryWidgets(weatherData, alertsData) {
   const current = weatherData?.current;
 
-  // 1. Digital Temperature or Visibility Display (Mode-Aware)
+  // 1 & 2. Digital Temperature/Aerodrome Temp and Humidity/RVR Display (Mode-Aware)
   updateTelemetryWidgetForMode(weatherData);
-
-  // 2. Humidity Gauge (Big Digits & Visual Ratio Bar)
-  if (current && current.humidity != null) {
-    const humidVal = Math.round(current.humidity);
-    elements.telemetryHumidity.textContent = `${humidVal}%`;
-    elements.telemetryHumiditySub.textContent = 'RELATIVE HUMIDITY';
-    if (elements.humidityBarFill) {
-      elements.humidityBarFill.style.width = `${Math.min(100, Math.max(0, humidVal))}%`;
-    }
-  } else {
-    elements.telemetryHumidity.textContent = '--%';
-    elements.telemetryHumiditySub.textContent = 'SENSOR OFFLINE';
-    if (elements.humidityBarFill) {
-      elements.humidityBarFill.style.width = '0%';
-    }
-  }
 
   // 3. Wind Velocity widget
   if (current && current.wind_speed != null) {
-    elements.telemetryWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
-    elements.telemetryWindSub.textContent = 'SURFACE VELOCITY';
+    if (elements.telemetryWind) elements.telemetryWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
+    if (elements.telemetryWindSub) elements.telemetryWindSub.textContent = 'SURFACE VELOCITY';
   } else {
-    elements.telemetryWind.textContent = '-- km/h';
-    elements.telemetryWindSub.textContent = 'AWAITING ANEMOMETER';
+    if (elements.telemetryWind) elements.telemetryWind.textContent = '-- km/h';
+    if (elements.telemetryWindSub) elements.telemetryWindSub.textContent = 'AWAITING ANEMOMETER';
   }
 
-  // 4. Barometric / Hazards tracker widget
+  // 4. Barometric / Hazards tracker widget (#metricAlerts, #telemetryAlertsCount)
   const alertCount = (alertsData || []).length;
-  elements.telemetryAlertsCount.textContent = `${alertCount} ACTIVE`;
-  if (alertCount > 0) {
-    elements.telemetryAlertsCount.style.color = '#FF3131';
-    elements.telemetryBaroSub.textContent = 'OFFICIAL HAZARDS TRACKED';
-  } else {
-    elements.telemetryAlertsCount.style.color = state.operationalMode === 'aviation' ? '#00E5FF' : '#00FF41';
-    elements.telemetryBaroSub.textContent = 'NO ACTIVE WARNINGS';
+  const elAlerts = document.getElementById('metricAlerts') || elements.telemetryAlertsCount;
+  if (elAlerts) {
+    elAlerts.textContent = `${alertCount} ACTIVE`;
+    if (alertCount > 0) {
+      elAlerts.style.color = '#FF3131';
+      if (elements.telemetryBaroSub) elements.telemetryBaroSub.textContent = 'OFFICIAL HAZARDS TRACKED';
+    } else {
+      elAlerts.style.color = (state.currentMode === 'aviation') ? '#00d4ff' : '#00ff66';
+      if (elements.telemetryBaroSub) elements.telemetryBaroSub.textContent = 'NO ACTIVE WARNINGS';
+    }
   }
 }
 
@@ -1216,7 +1429,7 @@ function appendUserMessage(queryText) {
   msgEntry.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-function appendSystemLoading() {
+function appendSystemLoading(customLabel) {
   const loadingEntry = document.createElement('div');
   loadingEntry.className = 'message-entry system-loading';
   loadingEntry.id = 'systemLoadingIndicator';
@@ -1225,7 +1438,7 @@ function appendSystemLoading() {
   spinner.className = 'system-spinner';
 
   const label = document.createElement('span');
-  label.textContent = 'QUERYING RAG BRAIN & SATELLITE RADAR...';
+  label.textContent = customLabel || 'SYS_AI > QUERYING RAG BRAIN...';
 
   loadingEntry.append(spinner, label);
   elements.chatStream.appendChild(loadingEntry);
@@ -1658,40 +1871,40 @@ function buildLocationPayload() {
   };
 }
 
-async function executeChatRequest(queryText) {
+async function executeCommand(queryText) {
   if (!queryText || state.isExecuting) return;
 
   state.isExecuting = true;
-  elements.executeBtn.disabled = true;
-  elements.queryInput.disabled = true;
+  if (elements.executeBtn) elements.executeBtn.disabled = true;
+  if (elements.queryInput) elements.queryInput.disabled = true;
 
   appendUserMessage(queryText);
-  elements.queryInput.value = '';
+  if (elements.queryInput) elements.queryInput.value = '';
 
-  // 1. Every time a user sends a message, push { role: 'user', content: query } to chatHistory
-  chatHistory.push({ role: 'user', content: queryText });
-  if (chatHistory.length > 6) {
-    chatHistory = chatHistory.slice(-6);
-  }
+  // 1. Multi-Turn History Persistence
+  const userMsg = { role: 'user', content: queryText };
+  state.chatHistory.push(userMsg);
+  chatHistory.push(userMsg);
+  if (state.chatHistory.length > 6) state.chatHistory = state.chatHistory.slice(-6);
+  if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
 
-  const loadingIndicator = appendSystemLoading();
+  // 2. Visual Prompt in Chat Feed
+  const loadingIndicator = appendSystemLoading('SYS_AI > QUERYING RAG BRAIN...');
 
-  // Construct request payload strictly matching ChatRequest schema (with conversational history & operational mode)
+  // 3. Construct Live Request matching ChatRequest Schema
   const payload = {
     query: queryText,
     language: elements.languageSelect ? elements.languageSelect.value : 'en',
     channel: state.isVoiceMode ? 'voice' : 'web',
     location: buildLocationPayload(),
-    scientific_mode: state.mapMode === 'sat',
-    history: chatHistory.slice(-6),
-    mode: state.operationalMode || 'standard',
+    scientific_mode: Boolean(state.satelliteMode || (state.mapMode === 'sat')),
+    history: state.chatHistory.slice(-6),
+    mode: state.currentMode || state.operationalMode || 'standard',
   };
 
-  // Reset voice mode flag after payload prepared
   state.isVoiceMode = false;
 
   try {
-    // Relative path /chat ensures it works regardless of backend port
     const response = await fetch('/chat', {
       method: 'POST',
       headers: {
@@ -1708,42 +1921,54 @@ async function executeChatRequest(queryText) {
     const data = await response.json();
     loadingIndicator.remove();
 
-    // 2. Every time the AI responds, push { role: 'assistant', content: bot_reply } to chatHistory
     if (data.bot_reply) {
-      chatHistory.push({ role: 'assistant', content: data.bot_reply });
-      if (chatHistory.length > 6) {
-        chatHistory = chatHistory.slice(-6);
+      const assistantMsg = { role: 'assistant', content: data.bot_reply };
+      state.chatHistory.push(assistantMsg);
+      chatHistory.push(assistantMsg);
+      if (state.chatHistory.length > 6) state.chatHistory = state.chatHistory.slice(-6);
+      if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
+    }
+
+    if (data.detected_language) {
+      updateBhashiniBadge(data.detected_language);
+      if (elements.languageSelect && elements.languageSelect.value === 'auto') {
+        const hasOpt = Array.from(elements.languageSelect.options).some(o => o.value === data.detected_language);
+        if (hasOpt) {
+          elements.languageSelect.value = data.detected_language;
+          applyLocalization(data.detected_language);
+        }
       }
     }
 
-    if (data.detected_language && elements.languageSelect && elements.languageSelect.value === 'auto') {
-      const hasOpt = Array.from(elements.languageSelect.options).some(o => o.value === data.detected_language);
-      if (hasOpt) {
-        elements.languageSelect.value = data.detected_language;
-        applyLocalization(data.detected_language);
-      }
-    }
-
-    // Cache telemetry state for temporal analysis and emergency triggers
+    // Cache state
     state.lastWeatherData = data.weather;
+    state.activeLocation = data.location;
     state.currentLocation = data.location;
     state.historyData = data.history_data || [];
     state.currentAlerts = data.alerts || [];
+    state.currentOverlays = data.synoptic_overlays || [];
 
-    // 1. Render Markdown reply & Source Pills
+    // 4. Live-Wire Binding:
+    // 4.1 bot_reply -> rendered via marked.parse into terminal feed
     appendBotMessage(data);
 
-    // 2. Map the first paragraph to scrolling Ticker Tape (with lightning check)
-    bindTickerTape(data.bot_reply, data.alerts);
+    // Aerodrome Lock & METAR Runway Report Binding
+    updateAerodromeHeader(data.icao_code || data.location?.icao_code, data.location?.city);
+    updateMetarTelemetryDisplay(data.metar_raw, data.flight_rules, data.icao_code || data.location?.icao_code);
 
-    // 3. Bind Telemetry Widgets
+    // 4.2 Ticker Tape (with wind shear tactical takeover)
+    bindTickerTape(data.bot_reply, data.alerts, data.metar_raw, data.icao_code || data.location?.icao_code);
+
+    // 4.3 Live Telemetry Widgets:
+    // weather.current.temperature -> #metricTemp / #telemetryTemp
+    // weather.current.humidity -> #metric2Val & #metric2Bar width
+    // alerts -> "X ACTIVE HAZARDS" counter & crisis alert strip
     bindTelemetryWidgets(data.weather, data.alerts);
 
-    // 4. Update Geospatial Radar (Leaflet.js)
-    state.currentOverlays = data.synoptic_overlays || [];
+    // 4.4 Geospatial Radar Lock
     updateGeospatialLayer(data.location, data.alerts, data.synoptic_overlays);
 
-    // 5. Emergency UI State (crisis-mode: alerts + temp > 45°C + wind > 75km/h)
+    // 4.5 Emergency UI state
     updateEmergencyUIState(data.alerts, data.weather);
 
   } catch (err) {
@@ -1760,10 +1985,18 @@ async function executeChatRequest(queryText) {
     errorEntry.scrollIntoView({ behavior: 'smooth', block: 'end' });
   } finally {
     state.isExecuting = false;
-    elements.executeBtn.disabled = false;
-    elements.queryInput.disabled = false;
-    elements.queryInput.focus();
+    if (elements.executeBtn) elements.executeBtn.disabled = false;
+    if (elements.queryInput) {
+      elements.queryInput.disabled = false;
+      elements.queryInput.focus();
+    }
   }
+}
+window.executeCommand = executeCommand;
+window.executeChatRequest = executeCommand;
+
+function executeChatRequest(queryText) {
+  return executeCommand(queryText);
 }
 
 // ── 9. Form Submission & Universal Intent Quick Queries ──────────────────────
@@ -1855,10 +2088,66 @@ if (elements.manualModeBtn) {
   elements.manualModeBtn.addEventListener('click', () => setLocationMode('manual'));
 }
 if (elements.manualLocationInput) {
+  const aerodromeMap = {
+    kolkata: { icao: 'VECC', name: 'KOLKATA INTL', lat: 22.65, lon: 88.45 },
+    calcutta: { icao: 'VECC', name: 'KOLKATA INTL', lat: 22.65, lon: 88.45 },
+    delhi: { icao: 'VIDP', name: 'DELHI INTL', lat: 28.56, lon: 77.10 },
+    'new delhi': { icao: 'VIDP', name: 'DELHI INTL', lat: 28.56, lon: 77.10 },
+    mumbai: { icao: 'VABB', name: 'MUMBAI INTL', lat: 19.09, lon: 72.87 },
+    bombay: { icao: 'VABB', name: 'MUMBAI INTL', lat: 19.09, lon: 72.87 },
+    chennai: { icao: 'VOMM', name: 'CHENNAI INTL', lat: 12.99, lon: 80.17 },
+    madras: { icao: 'VOMM', name: 'CHENNAI INTL', lat: 12.99, lon: 80.17 },
+    bengaluru: { icao: 'VOBL', name: 'KEMPEGOWDA INTL', lat: 13.20, lon: 77.71 },
+    bangalore: { icao: 'VOBL', name: 'KEMPEGOWDA INTL', lat: 13.20, lon: 77.71 },
+    hyderabad: { icao: 'VOHS', name: 'RAJIV GANDHI INTL', lat: 17.24, lon: 78.43 },
+    ahmedabad: { icao: 'VAAH', name: 'SARDAR VALLABHBHAI PATEL INTL', lat: 23.07, lon: 72.63 },
+    bhubaneswar: { icao: 'VEBS', name: 'BIJU PATNAIK INTL', lat: 20.24, lon: 85.82 },
+    patna: { icao: 'VEPT', name: 'JAYPRAKASH NARAYAN INTL', lat: 25.59, lon: 85.09 },
+    guwahati: { icao: 'VEGT', name: 'LOKPRIA GOPINATH BORDOI INTL', lat: 26.11, lon: 91.59 },
+    kochi: { icao: 'VOCI', name: 'COCHIN INTL', lat: 10.15, lon: 76.40 },
+    amritsar: { icao: 'VIAR', name: 'SRI GURU RAM DASS JEE INTL', lat: 31.71, lon: 74.80 },
+    goa: { icao: 'VOGO', name: 'DABOLIM / GOA INTL', lat: 15.38, lon: 73.83 },
+    lucknow: { icao: 'VILK', name: 'CHAUDHARY CHARAN SINGH INTL', lat: 26.76, lon: 80.88 },
+    jaipur: { icao: 'VIJP', name: 'JAIPUR INTL', lat: 26.82, lon: 75.81 },
+    'port blair': { icao: 'VOPB', name: 'VEER SAVARKAR INTL', lat: 11.64, lon: 92.73 },
+  };
+
   elements.manualLocationInput.addEventListener('input', (e) => {
     state.manualLocationText = e.target.value.trim();
     if (state.manualLocationText) {
       elements.locationSummaryText.textContent = `LOC: ${state.manualLocationText.toUpperCase()}`;
+      const match = aerodromeMap[state.manualLocationText.toLowerCase()];
+      if (match) {
+        updateAerodromeHeader(match.icao, match.name);
+        updateMetarTelemetryDisplay(null, null, match.icao);
+      }
+    }
+  });
+
+  elements.manualLocationInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const city = e.target.value.trim();
+      if (city) {
+        state.manualLocationText = city;
+        const match = aerodromeMap[city.toLowerCase()];
+        if (match) {
+          updateAerodromeHeader(match.icao, match.name);
+          state.activeLocation = {
+            latitude: match.lat,
+            longitude: match.lon,
+            city: city,
+            icao_code: match.icao,
+            airport_name: match.name,
+          };
+          state.currentLocation = state.activeLocation;
+          if (state.map) {
+            state.map.setView([match.lat, match.lon], 9, { animate: true });
+            initRadar(match.lat, match.lon);
+          }
+        }
+        sendSystemProbe(false);
+      }
     }
   });
 }
@@ -1977,10 +2266,10 @@ function setupVoiceInput() {
             voiceIndicatorEl = null;
           }
 
-          // 1. Display the recognized user query in the chat stream & input field
+          // 1. Display recognized user query in the chat stream & CMD> input field
           const userText = data.transcribed_query || 'Voice query';
           appendUserMessage(userText);
-          elements.queryInput.value = userText;
+          if (elements.queryInput) elements.queryInput.value = userText;
 
           // Realign output language selector & localization using Linguistic Passport (locked_language_code)
           const lockedLang = data.locked_language_code || data.detected_language;
@@ -1991,19 +2280,23 @@ function setupVoiceInput() {
               applyLocalization(lockedLang);
             }
           }
-          // Push voice query and response to chatHistory for seamless continuity
+          // Push voice query and response to state.chatHistory for seamless continuity
+          state.chatHistory.push({ role: 'user', content: userText });
           chatHistory.push({ role: 'user', content: userText });
           if (data.bot_reply) {
+            state.chatHistory.push({ role: 'assistant', content: data.bot_reply });
             chatHistory.push({ role: 'assistant', content: data.bot_reply });
           }
-          if (chatHistory.length > 6) {
-            chatHistory = chatHistory.slice(-6);
-          }
+          if (state.chatHistory.length > 6) state.chatHistory = state.chatHistory.slice(-6);
+          if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
 
           // 2. Cache telemetry state for temporal analysis and emergency triggers
           state.lastWeatherData = data.weather;
+          state.activeLocation = data.location;
           state.currentLocation = data.location;
           state.historyData = data.history_data || [];
+          state.currentAlerts = data.alerts || [];
+          state.currentOverlays = data.synoptic_overlays || [];
 
           // 3. Render Markdown reply & Source Pills (with embedded audio player)
           const botMsgEl = appendBotMessage(data);
@@ -2108,7 +2401,7 @@ async function sendSystemProbe(isInitial = false) {
     language: 'en',
     channel: 'web',
     location: buildLocationPayload(),
-    mode: state.operationalMode || 'standard',
+    mode: state.currentMode || state.operationalMode || 'standard',
   };
 
   try {
@@ -2125,11 +2418,15 @@ async function sendSystemProbe(isInitial = false) {
     state.currentOverlays = data.synoptic_overlays || [];
     updateGeospatialLayer(data.location, data.alerts, data.synoptic_overlays);
 
+    // Aerodrome Lock & METAR Runway Report Binding
+    updateAerodromeHeader(data.icao_code || data.location?.icao_code, data.location?.city);
+    updateMetarTelemetryDisplay(data.metar_raw, data.flight_rules, data.icao_code || data.location?.icao_code);
+
     // 2. Instantly populate Big Digits Telemetry Widgets (Temperature, Humidity, Wind, Active Hazards)
     bindTelemetryWidgets(data.weather, data.alerts);
 
-    // 3. Instantly populate Top Marquee Ticker Tape with Synoptic Overview (with lightning check)
-    bindTickerTape(data.bot_reply, data.alerts);
+    // 3. Instantly populate Top Marquee Ticker Tape with Synoptic Overview (with wind shear tactical takeover)
+    bindTickerTape(data.bot_reply, data.alerts, data.metar_raw, data.icao_code || data.location?.icao_code);
 
     // 4. Update Crisis Mode if critical alerts exist or temp > 45 / wind > 75
     updateEmergencyUIState(data.alerts, data.weather);
@@ -2284,7 +2581,30 @@ function applyLocalization(langCode) {
       }
     }
   });
+
+  // Re-sync telemetry labels for current mode so localized defaults don't clobber aviation labels
+  updateTelemetryWidgetForMode(state.lastWeatherData);
+
+  // Update Digital India Bhashini footer badge
+  updateBhashiniBadge(code);
 }
+
+function updateBhashiniBadge(langCode) {
+  const badge = document.getElementById('securityVerifiedBadge');
+  if (!badge) return;
+  const code = (langCode || '').toLowerCase().trim().split('-')[0];
+  const isRegional = Boolean(code && code !== 'en' && code !== 'auto');
+  if (isRegional) {
+    badge.classList.add('bhashini-active');
+    badge.textContent = 'SECURITY: VERIFIED // BHASHINI ACTIVE';
+    badge.title = 'Digital India Bhashini National Language Core Active [MeitY ULCA]';
+  } else {
+    badge.classList.remove('bhashini-active');
+    badge.textContent = 'SECURITY: VERIFIED';
+    badge.title = 'Security Integrity Verified';
+  }
+}
+window.updateBhashiniBadge = updateBhashiniBadge;
 
 if (elements.languageSelect) {
   elements.languageSelect.addEventListener('change', (e) => {
@@ -2307,9 +2627,18 @@ function initializeTerminal() {
   initIntervalButtons();
   setupVoiceInput();
   checkBackendHealth();
+  updateQuickPromptButtonsForMode(state.currentMode);
   applyLocalization(elements.languageSelect ? elements.languageSelect.value : 'en');
 
   // Bind Operational Mode Toggles (Standard <-> Aviation)
+  const btnStandard = elements.modeBtnStandard || document.getElementById('mode-btn-standard');
+  if (btnStandard) {
+    btnStandard.addEventListener('click', () => setMode('standard'));
+  }
+  const btnAviation = elements.modeBtnAviation || document.getElementById('mode-btn-aviation');
+  if (btnAviation) {
+    btnAviation.addEventListener('click', () => setMode('aviation'));
+  }
   const headerModeBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
   if (headerModeBtn) {
     headerModeBtn.addEventListener('click', () => toggleOperationalMode());

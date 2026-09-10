@@ -5,24 +5,29 @@
    ========================================================================== */
 
 :root {
+  --accent: #00ff66; /* Standard Green */
+  --bg-main: #000000;
+  --border-dim: rgba(0, 255, 102, 0.2);
+
   --bg-pure: #000000;
   --bg-surface: #060907;
   --bg-panel: #0a0e0b;
   --bg-panel-header: #101712;
   --bg-panel-sub: #141f17;
 
-  --terminal-green: #00FF41;
+  --neon-green: var(--accent);
+  --terminal-green: var(--accent);
   --terminal-green-bright: #39ff14;
   --terminal-green-dim: #00a82b;
-  --terminal-green-glow: rgba(0, 255, 65, 0.25);
-  --terminal-border: rgba(0, 255, 65, 0.3);
-  --terminal-border-bright: #00FF41;
+  --terminal-green-glow: rgba(0, 255, 102, 0.25);
+  --terminal-border: var(--border-dim);
+  --terminal-border-bright: var(--accent);
 
   --terminal-amber: #FFB000;
   --terminal-orange: #FFAC1C;
   --terminal-red: #FF3131;
   --terminal-red-glow: rgba(255, 49, 49, 0.45);
-  --terminal-cyan: #00F0FF;
+  --terminal-cyan: #00d4ff;
   --terminal-cyan-dim: #008899;
 
   --text-primary: #e4ffe8;
@@ -31,6 +36,29 @@
   
   --font-mono: 'JetBrains Mono', 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Fira Code', 'Courier New', Courier, monospace;
 }
+
+body.aviation-theme,
+body.mode-aviation {
+  --accent: #00d4ff; /* Aviation Cyan */
+  --border-dim: rgba(0, 212, 255, 0.2);
+
+  --neon-green: var(--accent) !important;
+  --terminal-green: var(--accent) !important;
+  --terminal-green-bright: #67e8f9 !important;
+  --terminal-green-dim: #0284c7 !important;
+  --terminal-green-glow: rgba(0, 212, 255, 0.35) !important;
+  --terminal-border: var(--border-dim) !important;
+  --terminal-border-bright: var(--accent) !important;
+  --terminal-cyan: var(--accent) !important;
+
+  --text-primary: #e0f7fa !important;
+  --text-secondary: #80deea !important;
+  --text-muted: #4dd0e1 !important;
+}
+
+/* FORCE ALL BORDERS, TEXT, AND SHADOWS TO USE var(--accent) */
+.terminal-border { border: 1px solid var(--accent) !important; }
+.terminal-text { color: var(--accent) !important; }
 
 /* Reset & Box Sizing */
 *, *::before, *::after {
@@ -161,6 +189,58 @@ body.crisis-mode {
   display: flex;
   gap: 12px;
   color: var(--terminal-cyan);
+}
+
+/* ── Aerodrome Indicator (Aviation Lock) ────────────────────────── */
+.aerodrome-indicator-tray {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border-dim);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.aerodrome-indicator-tray .aerodrome-tag {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.aerodrome-indicator-tray .aerodrome-code {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  font-family: var(--font-mono);
+  text-shadow: 0 0 6px var(--terminal-green-glow);
+}
+
+body.aviation-theme .aerodrome-indicator-tray {
+  border-color: rgba(0, 212, 255, 0.5);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.25);
+}
+
+.aviation-metar-card {
+  border-left: 3px solid var(--accent);
+  background: rgba(0, 25, 35, 0.45) !important;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.15);
+  animation: fadeIn 0.3s ease;
+}
+
+.ticker-track.has-aviation-warning {
+  color: #ff3131 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 10px rgba(255, 49, 49, 0.8) !important;
+  animation: ticker-warning-pulse 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes ticker-warning-pulse {
+  from { opacity: 0.85; }
+  to { opacity: 1; text-shadow: 0 0 14px #ff3131; }
 }
 
 /* ── Ticker Tape (Synoptic Overview) ────────────────────────────── */
@@ -2121,56 +2201,275 @@ body.sat-mode .user-beacon-core,
   box-shadow: 0 0 10px var(--terminal-green-glow);
 }
 
-.mode-toggle-btn.is-aviation {
-  background: rgba(0, 229, 255, 0.15) !important;
-  border-color: #00E5FF !important;
-  color: #00E5FF !important;
-  box-shadow: 0 0 14px rgba(0, 229, 255, 0.45) !important;
+/* Mode Selector Tray in Top Header */
+.mode-selector-tray {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid var(--border-dim);
+  padding: 2px 3px;
+  border-radius: 3px;
 }
 
-/* Aviation Skin: Turns terminal accents to high-visibility Aviation Cyan (#00E5FF) */
-body.mode-aviation {
-  --neon-green: #00E5FF !important;
-  --terminal-green: #00E5FF !important;
-  --terminal-green-bright: #38bdf8 !important;
-  --terminal-green-dim: #0284c7 !important;
-  --terminal-green-glow: rgba(0, 229, 255, 0.35) !important;
-  --terminal-border: rgba(0, 229, 255, 0.35) !important;
-  --terminal-border-bright: #00E5FF !important;
-  --text-primary: #e0f7fa !important;
-  --text-secondary: #80deea !important;
-  --text-muted: #4dd0e1 !important;
+.mode-pill-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
 }
 
-body.mode-aviation .brand-badge {
-  background: #00E5FF !important;
+.mode-pill-btn:hover {
+  background: rgba(0, 255, 102, 0.12);
+  border-color: var(--accent);
+}
+
+.mode-pill-btn.is-active {
+  background: var(--accent) !important;
   color: #000000 !important;
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.5) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 10px var(--terminal-green-glow) !important;
+  font-weight: 800;
 }
 
-body.mode-aviation #systemIndicator {
-  background-color: #00E5FF !important;
-  box-shadow: 0 0 10px #00E5FF !important;
-}
-
-body.mode-aviation .execute-btn {
-  background: #00E5FF !important;
+body.aviation-theme .mode-pill-btn.is-active,
+body.mode-aviation .mode-pill-btn.is-active {
+  background: var(--accent) !important;
   color: #000000 !important;
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.4) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.6) !important;
 }
 
-body.mode-aviation .telemetry-card#telemetryCard1 {
-  border-color: #00E5FF !important;
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.25) !important;
+/* Free OpenStreetMap Dark Terminal Styling (Zero Watermark / No API Key Required) */
+.terminal-osm-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(125%) !important;
 }
 
-body.mode-aviation .telemetry-card#telemetryCard1 .telemetry-card-header span:first-child {
-  color: #00E5FF !important;
+body.aviation-theme .terminal-osm-dark-tiles,
+body.mode-aviation .terminal-osm-dark-tiles {
+  filter: invert(100%) hue-rotate(195deg) brightness(90%) contrast(125%) !important;
 }
 
-body.mode-aviation .telemetry-card#telemetryCard1 #telemetryCard1Badge {
-  background: rgba(0, 229, 255, 0.2) !important;
-  border: 1px solid #00E5FF !important;
-  color: #00E5FF !important;
+/* Complete Aviation Theme Enforcement: Borders, Panels, Chat, Radar, Badges */
+body.aviation-theme .terminal-app,
+body.aviation-theme .terminal-header,
+body.aviation-theme .terminal-chat-panel,
+body.aviation-theme .terminal-telemetry-panel,
+body.aviation-theme .radar-wrapper,
+body.aviation-theme .telemetry-card,
+body.aviation-theme .local-env-toolbar,
+body.aviation-theme .terminal-footer,
+body.aviation-theme .terminal-composer {
+  border-color: var(--border-dim) !important;
 }
+
+body.aviation-theme .panel-header {
+  border-bottom: 1px solid var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .brand-badge {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.5) !important;
+}
+
+body.aviation-theme #systemIndicator {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 10px var(--accent) !important;
+}
+
+body.aviation-theme .execute-btn {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.4) !important;
+}
+
+body.aviation-theme .quick-prompt-btn,
+body.mode-aviation .quick-prompt-btn {
+  color: #00d4ff !important;
+  border: 1px solid rgba(0, 212, 255, 0.45) !important;
+  background: rgba(0, 20, 35, 0.6) !important;
+  box-shadow: 0 0 4px rgba(0, 212, 255, 0.25) !important;
+}
+
+body.aviation-theme .quick-prompt-btn:hover,
+body.mode-aviation .quick-prompt-btn:hover {
+  color: #ffffff !important;
+  background-color: rgba(0, 212, 255, 0.25) !important;
+  border-color: #00d4ff !important;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+body.aviation-theme .quick-prompt-btn:active,
+body.mode-aviation .quick-prompt-btn:active {
+  background-color: rgba(0, 212, 255, 0.4) !important;
+  border-color: #00d4ff !important;
+}
+
+body.aviation-theme .prompt-prefix,
+body.aviation-theme .message-prefix,
+body.aviation-theme .command-input {
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .command-input {
+  border-color: var(--border-dim) !important;
+}
+
+body.aviation-theme .telemetry-card {
+  border-color: var(--border-dim) !important;
+}
+
+body.aviation-theme .telemetry-card-header {
+  border-bottom: 1px solid var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .telemetry-card-header span:first-child {
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .telemetry-card-header span:last-child {
+  background: rgba(0, 212, 255, 0.15) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .telemetry-value-large,
+body.aviation-theme .telemetry-value-medium {
+  color: var(--accent) !important;
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.35) !important;
+}
+
+body.aviation-theme .humidity-bar-fill {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent) !important;
+}
+
+body.aviation-theme .interval-btn.is-active {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5) !important;
+}
+
+body.aviation-theme .radar-sweep-badge {
+  border-color: var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .radar-sweep {
+  background: conic-gradient(from 0deg, rgba(0, 212, 255, 0.22) 0%, transparent 40%) !important;
+}
+
+body.aviation-theme .radar-sweep::before {
+  background: linear-gradient(to top, rgba(0, 212, 255, 0.95), rgba(0, 212, 255, 0.1)) !important;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.9) !important;
+}
+
+body.aviation-theme .radar-pulse-ring {
+  border-color: rgba(0, 212, 255, 0.4) !important;
+}
+
+body.aviation-theme .radar-crosshair-h,
+body.aviation-theme .radar-crosshair-v {
+  background: rgba(0, 212, 255, 0.3) !important;
+}
+
+body.aviation-theme .radar-center-blip {
+  background: var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent) !important;
+}
+
+body.aviation-theme .wm-source-badge {
+  border-color: var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.aviation-theme .intel-toggle-btn {
+  color: var(--accent) !important;
+  border-color: var(--border-dim) !important;
+}
+
+body.aviation-theme .confidence-gauge-bar {
+  color: var(--accent) !important;
+}
+
+/* Utility Classes for Map Container */
+.h-full { height: 100%; }
+.w-full { width: 100%; }
+.relative { position: relative; }
+
+/* Floating Satellite / GEE Layer Toggle */
+.map-floating-toggle-wrap {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  margin-top: 10px !important;
+  margin-right: 10px !important;
+}
+
+.floating-sat-btn {
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--terminal-green);
+  color: var(--terminal-green);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.3);
+  transition: all 0.2s ease;
+}
+
+.floating-sat-btn:hover {
+  background: var(--terminal-green);
+  color: #000000;
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.7);
+}
+
+.floating-sat-btn.is-active {
+  background: var(--terminal-cyan);
+  color: #000000;
+  border-color: var(--terminal-cyan);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.7);
+}
+
+/* ── Digital India Bhashini National Language Core Active Badge ── */
+.security-verified-badge {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+}
+
+.security-verified-badge.bhashini-active {
+  color: #00ffff !important;
+  text-shadow: 0 0 8px #00ffff, 0 0 18px rgba(0, 255, 255, 0.85) !important;
+  font-weight: 800 !important;
+  border-bottom: 1.5px solid #00ffff;
+  cursor: help;
+  animation: bhashini-verified-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes bhashini-verified-glow {
+  0% {
+    text-shadow: 0 0 6px #00ffff, 0 0 12px rgba(0, 255, 255, 0.5);
+    color: #00ffff;
+  }
+  100% {
+    text-shadow: 0 0 14px #00ffff, 0 0 24px rgba(0, 255, 255, 0.95);
+    color: #e0ffff;
+  }
+}
+
 

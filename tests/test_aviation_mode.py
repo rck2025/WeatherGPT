@@ -144,3 +144,100 @@ def test_aviation_mode_convective_hazard_warning():
 
     bot_reply = res["bot_reply"]
     assert any(term in bot_reply.upper() for term in ["IFR", "THUNDERSTORM", "CONVECTIVE", "HAZARD", "WARNING"])
+
+
+def test_metar_decoder():
+    """Verify regex parsing of raw IMD METAR telemetry into normalized dict."""
+    from backend.services.weather.metar import decode_metar
+
+    # Sample standard IMD METAR from VECC Kolkata
+    raw_metar = "METAR VECC 100230Z 02008KT 4500 HZ FEW025 28/22 Q1012 NOSIG"
+    decoded = decode_metar(raw_metar)
+
+    assert decoded["wind_dir"] == "020"
+    assert decoded["wind_speed_kts"] == 8
+    assert decoded["visibility_m"] == 4500
+    assert decoded["temp_c"] == 28
+    assert decoded["dewpoint_c"] == 22
+    assert decoded["qnh_hpa"] == 1012
+    assert decoded["raw"] == raw_metar
+
+    # Convective + Wind shear METAR
+    severe_metar = "METAR VECC 101830Z 18038G45KT 1200 +TSRA BKN015CB 24/23 Q1006 WS RWY19L"
+    decoded_severe = decode_metar(severe_metar)
+    assert decoded_severe["wind_speed_kts"] == 38
+    assert decoded_severe["wind_gust_kts"] == 45
+    assert decoded_severe["visibility_m"] == 1200
+    assert decoded_severe["wind_shear"] is True
+    assert decoded_severe["wind_shear_rwy"] == "19L"
+    assert decoded_severe["convective_hazard"] is True
+
+
+def test_flight_rules_classification_icao_dgca():
+    """Verify ICAO Annex 3 and DGCA CAR Series M decision thresholds."""
+    from backend.services.weather.aviation_logic import classify_flight_rules
+
+    # VFR: High visibility, calm winds
+    vfr_badge, vfr_desc = classify_flight_rules({"visibility_m": 8000, "wind_speed_kts": 10})
+    assert "VFR (SUITABLE)" in vfr_badge
+    assert "Standard visual flight rules apply" in vfr_desc
+
+    # MVFR: Visibility between 1500m and 5000m
+    mvfr_badge, mvfr_desc = classify_flight_rules({"visibility_m": 3500, "wind_speed_kts": 15})
+    assert "MVFR (MARGINAL)" in mvfr_badge
+    assert "Reduced visibility" in mvfr_desc
+
+    # IFR: Visibility < 1500m (LVP active)
+    ifr_badge_vis, ifr_desc_vis = classify_flight_rules({"visibility_m": 1200, "wind_speed_kts": 10})
+    assert "IFR ONLY (LVP ACTIVE)" in ifr_badge_vis
+    assert "Low Visibility Procedures" in ifr_desc_vis
+
+    # IFR: Wind > 35 kts
+    ifr_badge_wind, _ = classify_flight_rules({"visibility_m": 9000, "wind_speed_kts": 40})
+    assert "IFR ONLY (LVP ACTIVE)" in ifr_badge_wind
+
+    # IFR: Wind shear active
+    ifr_badge_ws, ifr_desc_ws = classify_flight_rules({"visibility_m": 9000, "wind_speed_kts": 15, "wind_shear": True})
+    assert "IFR ONLY (LVP ACTIVE)" in ifr_badge_ws
+    assert "Wind shear" in ifr_desc_ws
+
+
+def test_icao_airport_resolver():
+    """Verify geospatial mapping of Indian cities to international aerodrome ICAO codes."""
+    from backend.services.location.resolver import get_nearest_icao
+
+    # Exact city matches
+    icao_kol, name_kol = get_nearest_icao(22.57, 88.36, "Kolkata")
+    assert icao_kol == "VECC"
+    assert "KOLKATA" in name_kol.upper()
+
+    icao_del, name_del = get_nearest_icao(28.61, 77.20, "Delhi")
+    assert icao_del == "VIDP"
+    assert "DELHI" in name_del.upper()
+
+    icao_mum, name_mum = get_nearest_icao(19.07, 72.87, "Mumbai")
+    assert icao_mum == "VABB"
+    assert "MUMBAI" in name_mum.upper()
+
+    # Coordinate proximity fallback (near Delhi coordinates)
+    icao_del_coord, _ = get_nearest_icao(28.55, 77.09)
+    assert icao_del_coord == "VIDP"
+
+
+def test_mwo_kolkata_prioritization():
+    """Verify that VECC lock triggers MWO Kolkata live HTML prioritization and source tagging."""
+    brain = WeatherGPTBrain()
+    weather = get_mock_aviation_weather(visibility_m=6000.0, wind_speed_kmh=15.0)
+    loc = Location(city="Kolkata", latitude=22.65, longitude=88.45)
+
+    req = ChatRequest(query="Provide aviation flight briefing for VECC", mode="aviation")
+    res = brain.query_with_schemas(req, weather_data=weather, location=loc, alerts=[])
+
+    assert res.get("icao_code") == "VECC"
+    assert res.get("metar_raw") is not None
+    assert "VECC" in res["metar_raw"]
+
+    # Verify MWO Kolkata prioritized source
+    sources = res.get("sources", [])
+    assert any("MWO" in s.get("source", "") or "VECC" in s.get("source", "") for s in sources)
+

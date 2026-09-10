@@ -36,9 +36,21 @@
       </div>
 
       <div class="header-status">
-        <button id="mode-toggle-header" type="button" class="mode-toggle-btn" onclick="toggleOperationalMode()" title="Toggle Operational Context: Standard Safety vs Tactical Aviation Briefing">
-          [ <span class="mode-toggle-icon">🌐</span> <span class="mode-toggle-text">MODE: STANDARD</span> ]
-        </button>
+        <!-- Aerodrome Indicator (Dynamic ICAO Lock) -->
+        <div class="aerodrome-indicator-tray" id="aerodromeTray" title="Active Aerodrome Lock">
+          <span class="aerodrome-tag">AERODROME:</span>
+          <span id="aerodromeIcaoText" class="aerodrome-code">ICAO: VECC // KOLKATA INTL</span>
+        </div>
+
+        <!-- Mode Switcher (Standard / Aviation) in Top-Right System Tray next to Clocks -->
+        <div class="mode-selector-tray" id="modeSelectorTray">
+          <button id="mode-btn-standard" type="button" class="mode-pill-btn is-active" onclick="setMode('standard')" title="Standard General Public Safety Mode">
+            🌐 STANDARD
+          </button>
+          <button id="mode-btn-aviation" type="button" class="mode-pill-btn" onclick="setMode('aviation')" title="Tactical Aviation Flight Briefing Mode">
+            ✈️ AVIATION
+          </button>
+        </div>
         <div class="clock-group">
           <span>UTC: <strong id="utcClock">--:--:--</strong></span>
           <span>IST: <strong id="istClock">--:--:--</strong></span>
@@ -214,21 +226,16 @@
       <section class="terminal-telemetry-panel">
         <!-- Leaflet Radar Map Window -->
         <div class="radar-wrapper">
-          <div class="panel-header">
-            <span>GEOSPATIAL HAZARD OVERLAY</span>
-            <div class="map-view-switch-wrap">
-              <button id="mode-toggle-map" type="button" onclick="toggleOperationalMode()" class="mode-toggle-btn" title="Toggle Operational Context: Standard Safety vs Tactical Aviation Briefing">
-                [ <span class="mode-toggle-icon">🌐</span> <span class="mode-toggle-text">MODE: STANDARD</span> ]
-              </button>
-              <span class="view-mode-label">VIEW_MODE:</span>
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; letter-spacing: 0.5px;">GEOSPATIAL HAZARD OVERLAY</span>
+            <div class="map-view-switch-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
               <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Toggle Tactical Grid / Live Satellite Imagery">
                 RADAR_LITE
               </button>
             </div>
-            <span class="panel-tag" data-t="RADAR_BOUNDS">BOUNDS: SOUTH ASIA</span>
           </div>
 
-          <div id="radarMap"></div>
+          <div id="radarMap" class="h-full w-full relative"></div>
           <div class="radar-sweep-badge status-glow" id="radarBadge">RADAR: SWEEP ACTIVE</div>
         </div>
 
@@ -252,21 +259,21 @@
               <span data-t="THERMAL" id="telemetryCard1Badge">THERMAL</span>
             </div>
             <div class="telemetry-card-body">
-              <span class="telemetry-value-large" id="telemetryTemp">--&#176;C</span>
+              <span class="telemetry-value-large" id="metricTemp" data-id="telemetryTemp">--&#176;C</span>
               <span class="telemetry-sub" id="telemetryTempSub">REAL-TIME TELEMETRY</span>
             </div>
           </div>
 
-          <!-- Humidity Gauge -->
+          <!-- Humidity / Runway Visual Range Gauge -->
           <div class="telemetry-card">
             <div class="telemetry-card-header">
-              <span data-t="HUMIDITY">02 // HUMIDITY RATIO</span>
-              <span data-t="MOISTURE">MOISTURE</span>
+              <span data-t="HUMIDITY" id="telemetryCard2Title">02 // HUMIDITY RATIO</span>
+              <span data-t="MOISTURE" id="telemetryCard2Badge">MOISTURE</span>
             </div>
             <div class="telemetry-card-body">
-              <span class="telemetry-value-medium" id="telemetryHumidity">--%</span>
-              <div class="humidity-bar-track" title="Humidity Ratio Bar">
-                <div class="humidity-bar-fill" id="humidityBarFill" style="width: 0%;"></div>
+              <span class="telemetry-value-medium" id="metric2Val" data-id="telemetryHumidity">--%</span>
+              <div class="humidity-bar-track" title="Humidity / RVR Ratio Bar">
+                <div class="humidity-bar-fill" id="metric2Bar" data-id="humidityBarFill" style="width: 0%;"></div>
               </div>
               <span class="telemetry-sub" id="telemetryHumiditySub">RELATIVE HUMIDITY</span>
             </div>
@@ -285,14 +292,31 @@
           </div>
 
           <!-- Pressure / Status Gauge -->
-          <div class="telemetry-card">
+          <!-- Pressure / Status Gauge -->
+          <div class="telemetry-card" id="telemetryCard4">
             <div class="telemetry-card-header">
-              <span data-t="BAROMETRIC">04 // BAROMETRIC / HAZARDS</span>
-              <span data-t="STABILITY">STABILITY</span>
+              <span data-t="BAROMETRIC" id="telemetryCard4Title">04 // BAROMETRIC / HAZARDS</span>
+              <span data-t="STABILITY" id="telemetryCard4Badge">STABILITY</span>
             </div>
             <div class="telemetry-card-body">
-              <span class="telemetry-value-medium" id="telemetryAlertsCount" style="color: var(--terminal-green);">0 ACTIVE</span>
+              <span class="telemetry-value-medium" id="metricAlerts" data-id="telemetryAlertsCount" style="color: var(--terminal-green);">0 ACTIVE</span>
               <span class="telemetry-sub" id="telemetryBaroSub" data-t="ACTIVE_BULLETINS">IMD BULLETINS TRACKED</span>
+            </div>
+          </div>
+
+          <!-- Aviation METAR & Runway Condition Report (Active in Aviation Mode) -->
+          <div class="telemetry-card aviation-metar-card" id="aviationMetarCard" style="grid-column: 1 / -1; display: none;">
+            <div class="telemetry-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="metarCardTitle" style="color: var(--accent); font-weight: 700; letter-spacing: 0.5px;">SYS_METAR_TAF // RUNWAY_CONDITION_REPORT</span>
+              <span id="metarCardBadge" class="radar-sweep-badge" style="font-size: 9px; padding: 1px 6px;">LIVE IMD MWO</span>
+            </div>
+            <div class="telemetry-card-body" style="padding: 6px 0;">
+              <div id="metarRawDisplay" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: var(--accent); word-break: break-all;">
+                METAR VECC 101830Z 02008KT 6000 FEW025 28/22 Q1013 NOSIG
+              </div>
+              <div id="metarFlightRulesDisplay" style="font-size: 10px; color: var(--text-muted); margin-top: 4px; font-weight: 600;">
+                DECISION SUPPORT: 🟢 VFR (SUITABLE) // DGCA CAR SERIES M COMPLIANT
+              </div>
             </div>
           </div>
         </div>
@@ -305,7 +329,7 @@
         <span>&#169; MINISTRY OF EARTH SCIENCES // METEOROLOGICAL INTELLIGENCE NETWORK</span>
       </div>
       <div>
-        <span data-t="SECURITY_VERIFIED">SECURITY: VERIFIED</span>
+        <span id="securityVerifiedBadge" class="security-verified-badge" data-t="SECURITY_VERIFIED" title="Security Integrity Verified">SECURITY: VERIFIED</span>
         <span style="margin: 0 8px;">|</span>
         <span class="footer-system-opt" data-t="GRID_OPTIMAL">GRID: OPTIMAL</span>
       </div>

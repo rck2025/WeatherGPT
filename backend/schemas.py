@@ -27,6 +27,8 @@ class Location(BaseModel):
     district: str | None = None
     state: str | None = None
     country: str | None = None
+    icao_code: str | None = None
+    airport_name: str | None = None
 
 
 # -------------------------
@@ -151,6 +153,9 @@ class ChatResponse(BaseModel):
     locked_language_code: str | None = None
     confidence_score: float = 1.0
     model_disagreement: bool = False
+    icao_code: str | None = None
+    metar_raw: str | None = None
+    flight_rules: str | None = None
 
 
 # -------------------------
@@ -174,5 +179,8 @@ class FullPipelineResponse(BaseModel):
     locked_language_code: str = "en"
     confidence_score: float = 1.0
     model_disagreement: bool = False
+    icao_code: str | None = None
+    metar_raw: str | None = None
+    flight_rules: str | None = None
 
 

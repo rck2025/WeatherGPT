@@ -117,12 +117,12 @@ class WeatherHybridEngine:
             logger.warning("faster-whisper not installed; STT transcription will be unavailable.")
             self._stt_model = None
 
-        # Bhashini credentials (optional — falls back to deep-translator automatically)
-        self._bhashini_user_id = os.getenv("BHASHINI_USER_ID")
+        # Bhashini credentials (official Digital India MeitY ULCA Gateway)
+        self._bhashini_user_id = os.getenv("BHASHINI_USER_ID", "135c3e6980-4b41-4cc5-91ce-dc3a356cf841")
         self._bhashini_api_key = os.getenv("BHASHINI_API_KEY")
         self._bhashini_url = os.getenv(
-            "BHASHINI_URL",
-            "https://meity-auth.ulcacontrib.org/ulca/gw/v1/decode/pipeline",
+            "BHASHINI_INFERENCE_URL",
+            "https://dhruva-api.bhashini.gov.in/services/inference/pipeline",
         )
 
     # ------------------------------------------------------------------
@@ -450,19 +450,9 @@ class WeatherHybridEngine:
     # ------------------------------------------------------------------
 
     def _bhashini_translate(self, text: str, source: str, target: str) -> str:
-        payload = {
-            "pipelineTasks": [{
-                "taskType": "translation",
-                "config": {"language": {"sourceLanguage": source, "targetLanguage": target}},
-            }],
-            "inputData": {"input": [{"source": text}]},
-        }
-        headers = {
-            "Content-Type": "application/json",
-            "userID":        self._bhashini_user_id,
-            "ulcaApiKey":    self._bhashini_api_key,
-        }
-        response = requests.post(self._bhashini_url, json=payload, headers=headers, timeout=5)
-        if response.status_code == 200:
-            return response.json()["pipelineResponse"][0]["output"][0]["target"]
-        return text
+        try:
+            from backend.services.language.translator import bhashini_translate
+            return bhashini_translate(text, source_lang=source, target_lang=target)
+        except Exception as exc:
+            logger.warning("Bhashini translation in engine failed: %s", exc)
+            return text

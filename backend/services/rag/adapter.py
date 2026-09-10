@@ -91,6 +91,9 @@ class RAGService:
                 synoptic_overlays=self._as_overlays(result.get("synoptic_overlays", [])),
                 confidence_score=float(result.get("confidence_score", 1.0)),
                 model_disagreement=bool(result.get("model_disagreement", False)),
+                icao_code=result.get("icao_code") or getattr(location, "icao_code", None),
+                metar_raw=result.get("metar_raw"),
+                flight_rules=result.get("flight_rules"),
             )
         except Exception:
             logger.exception("RAG service failed.")
