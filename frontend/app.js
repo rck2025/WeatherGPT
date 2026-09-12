@@ -238,12 +238,12 @@ function toggleMapMode() {
     renderHazardMarkers(state.currentAlerts);
 
     if (btn) {
-      btn.innerText = 'SAT_ACTIVE';
+      btn.innerText = 'Satellite';
       btn.classList.add('is-sat-active');
-      btn.style.backgroundColor = '#00ff66';
-      btn.style.color = '#000000';
-      btn.style.borderColor = '#00ff66';
-      btn.style.boxShadow = '0 0 12px rgba(0, 255, 102, 0.75)';
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+      btn.style.boxShadow = '';
     }
 
     const floatBtn = document.getElementById('floatingSatBtn');
@@ -288,10 +288,10 @@ function toggleMapMode() {
     renderHazardMarkers(state.currentAlerts);
 
     if (btn) {
-      btn.innerText = 'RADAR_LITE';
+      btn.innerText = 'Satellite';
       btn.classList.remove('is-sat-active');
-      btn.style.backgroundColor = 'transparent';
-      btn.style.color = '#00ff66';
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
       btn.style.borderColor = '';
       btn.style.boxShadow = '';
     }
@@ -407,10 +407,10 @@ async function toggleAgriScan() {
 
       const mapBtn = document.getElementById('map-toggle');
       if (mapBtn) {
-        mapBtn.innerText = 'SAT_ACTIVE';
+        mapBtn.innerText = 'Satellite';
         mapBtn.classList.add('is-sat-active');
-        mapBtn.style.backgroundColor = '#00ff66';
-        mapBtn.style.color = '#000000';
+        mapBtn.style.backgroundColor = '';
+        mapBtn.style.color = '';
       }
     }
 
@@ -420,7 +420,7 @@ async function toggleAgriScan() {
     // Update buttons to active Golden Amber state
     if (headerBtn) {
       headerBtn.classList.add('is-active');
-      headerBtn.innerText = '🌾 AGRI_SCAN ON';
+      headerBtn.innerText = 'Agri-scan';
     }
     if (floatBtn) {
       floatBtn.classList.add('is-active');
@@ -445,7 +445,7 @@ async function toggleAgriScan() {
 
     if (headerBtn) {
       headerBtn.classList.remove('is-active');
-      headerBtn.innerText = '🌾 AGRI_SCAN';
+      headerBtn.innerText = 'Agri-scan';
     }
     if (floatBtn) {
       floatBtn.classList.remove('is-active');
@@ -1324,7 +1324,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     // FARMER MODE (Task 3: Agro-Telemetry Mapping)
     // ══════════════════════════════════════════════════════════════
     // 1. SOIL WATER CONTENT: Map to soil_moisture_0_to_7cm (from Open-Meteo soil API)
-    if (card1Title) card1Title.textContent = '01 // SOIL WATER CONTENT';
+    if (card1Title) card1Title.textContent = 'Soil Water Content';
     if (card1Badge) card1Badge.textContent = 'SOIL VWC';
 
     const soilMoist = current?.soil_moisture_0_to_7cm;
@@ -1341,7 +1341,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     }
 
     // 2. CANOPY MICROCLIMATE: Map to humidity and label as "LEAF WETNESS"
-    if (card2Title) card2Title.textContent = '02 // CANOPY MICROCLIMATE';
+    if (card2Title) card2Title.textContent = 'Canopy Microclimate';
     if (card2Badge) card2Badge.textContent = 'LEAF WETNESS';
 
     if (current && current.humidity != null) {
@@ -1359,7 +1359,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     }
 
     // 3. DRIFT & SPRAY WINDOW: Map to wind_speed (< 15 km/h is safe)
-    if (card3Title) card3Title.textContent = '03 // DRIFT & SPRAY WINDOW';
+    if (card3Title) card3Title.textContent = 'Drift & Spray Window';
     if (current && current.wind_speed != null) {
       const windSpd = Number(current.wind_speed);
       const isSafe = (windSpd < 15.0);
@@ -1379,7 +1379,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     }
 
     // 4. MATURATION TRACKER: Map to GDD (Growing Degree Days logic, base 10°C)
-    if (card4Title) card4Title.textContent = '04 // MATURATION TRACKER';
+    if (card4Title) card4Title.textContent = 'Maturation Tracker';
     if (card4Badge) card4Badge.textContent = 'GDD INDEX';
 
     let tempVal = (current && current.temperature != null) ? Number(current.temperature) : 28.0;
@@ -1398,7 +1398,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     // ══════════════════════════════════════════════════════════════
     // AVIATION MODE
     // ══════════════════════════════════════════════════════════════
-    if (card1Title) card1Title.textContent = '01 // AERODROME TEMP';
+    if (card1Title) card1Title.textContent = 'Aerodrome Temp';
     if (card1Badge) card1Badge.textContent = 'AERODROME';
 
     if (current && current.temperature != null) {
@@ -1410,7 +1410,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       if (tempSub) tempSub.textContent = 'AERODROME TELEMETRY PENDING';
     }
 
-    if (card2Title) card2Title.textContent = '02 // RUNWAY VISUAL (RVR)';
+    if (card2Title) card2Title.textContent = 'Runway Visual (RVR)';
     if (card2Badge) card2Badge.textContent = 'RVR';
 
     if (elHumid) {
@@ -1424,7 +1424,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       elBar.style.width = `${barPct}%`;
     }
 
-    if (card3Title) card3Title.textContent = '03 // WIND VELOCITY';
+    if (card3Title) card3Title.textContent = 'Wind Velocity';
     if (card3Badge) {
       card3Badge.textContent = 'ANEMOMETER';
       card3Badge.style.color = '';
@@ -1437,7 +1437,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
     }
 
-    if (card4Title) card4Title.textContent = '04 // BAROMETRIC / HAZARDS';
+    if (card4Title) card4Title.textContent = 'Barometric / Hazards';
     if (card4Badge) card4Badge.textContent = 'STABILITY';
     const alertCount = (alertsData || []).length;
     if (elAlerts) {
@@ -1452,7 +1452,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     // ══════════════════════════════════════════════════════════════
     // STANDARD MODE
     // ══════════════════════════════════════════════════════════════
-    if (card1Title) card1Title.textContent = '01 // DIGITAL TEMPERATURE';
+    if (card1Title) card1Title.textContent = 'Temperature';
     if (card1Badge) card1Badge.textContent = 'THERMAL';
 
     if (current && current.temperature != null) {
@@ -1464,7 +1464,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       if (tempSub) tempSub.textContent = 'AWAITING TELEMETRY';
     }
 
-    if (card2Title) card2Title.textContent = '02 // HUMIDITY RATIO';
+    if (card2Title) card2Title.textContent = 'Humidity';
     if (card2Badge) card2Badge.textContent = 'MOISTURE';
 
     if (current && current.humidity != null) {
@@ -1478,7 +1478,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       if (elBar) elBar.style.width = '0%';
     }
 
-    if (card3Title) card3Title.textContent = '03 // WIND VELOCITY';
+    if (card3Title) card3Title.textContent = 'Wind Velocity';
     if (card3Badge) {
       card3Badge.textContent = 'ANEMOMETER';
       card3Badge.style.color = '';
@@ -1491,7 +1491,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
     }
 
-    if (card4Title) card4Title.textContent = '04 // BAROMETRIC / HAZARDS';
+    if (card4Title) card4Title.textContent = 'Barometric / Hazards';
     if (card4Badge) card4Badge.textContent = 'STABILITY';
     const alertCount = (alertsData || []).length;
     if (elAlerts) {
@@ -1821,7 +1821,7 @@ function appendBotMessage(response) {
 
   const prefix = document.createElement('span');
   prefix.className = 'message-prefix';
-  prefix.textContent = 'METEOROLOGICAL_INTELLIGENCE';
+  prefix.textContent = 'METEOROLOGICAL INTELLIGENCE';
 
   // Task 4: Confidence UI Binding - Terminal-Style Bar [#####-----] (50%)
   const confGauge = document.createElement('div');
@@ -2957,6 +2957,10 @@ function initializeTerminal() {
   state.isInitialized = true;
 
   initMap();
+  // Remeasure map after design layout (16:9 aspect container)
+  setTimeout(function () {
+    if (state.map) state.map.invalidateSize();
+  }, 150);
   initIntervalButtons();
   setupVoiceInput();
   checkBackendHealth();

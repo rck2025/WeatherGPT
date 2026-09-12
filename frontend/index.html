@@ -1,192 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WEATHERGPT TERMINAL</title>
+  <title>WeatherGPT</title>
 
-  <!-- Google Fonts: JetBrains Mono & Indic Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+Bengali:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Leaflet.js CDN (Map Styles & Script) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-  <!-- Marked.js CDN (Markdown Parser) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-  <!-- Tabler Icons (Disaster Alert Map Markers) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
 
-  <!-- Terminal Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=4.8" />
+  <link rel="stylesheet" href="style.css?v=5.0" />
+  <link rel="stylesheet" href="design.css?v=5.0" />
 </head>
-<body>
-  <!-- CRT Scanline Filter -->
-  <div class="scanlines" aria-hidden="true"></div>
+<body class="theme-dark">
+  <div class="terminal-app app-root">
 
-  <div class="terminal-app">
-    <!-- Top System Header Bar -->
+    <!-- Header — exact WeatherGPT Design.zip layout -->
     <header class="terminal-header">
-      <div class="header-brand">
-        <span class="brand-badge">WEATHERGPT</span>
-        <span class="brand-title">TERMINAL</span>
+      <span class="brand-title mono">WeatherGPT</span>
+
+      <div class="mode-selector-tray theme-toggle" id="modeSelectorTray">
+        <button id="mode-btn-standard" type="button" class="mode-pill-btn theme-btn is-active" onclick="setMode('standard')">Standard</button>
+        <button id="mode-btn-aviation" type="button" class="mode-pill-btn theme-btn" onclick="setMode('aviation')">✈ Aviation</button>
+        <button id="mode-btn-farmer" type="button" class="mode-pill-btn theme-btn" onclick="setMode('farmer')">🌾 Farmer</button>
       </div>
 
-      <div class="header-status">
-        <!-- Aerodrome Indicator (Dynamic ICAO Lock) -->
-        <div class="aerodrome-indicator-tray" id="aerodromeTray" title="Active Aerodrome Lock">
+      <div class="theme-toggle" id="visualThemeToggle" aria-label="Color theme">
+        <button type="button" class="theme-btn" data-theme-set="light" title="Light">☀</button>
+        <button type="button" class="theme-btn active" data-theme-set="dark" title="Dark">◐</button>
+        <button type="button" class="theme-btn legacy-btn" data-theme-set="legacy" title="Legacy">▒</button>
+      </div>
+
+      <!-- Functional hooks kept off-layout (app.js) -->
+      <div class="design-hidden" aria-hidden="true">
+        <div class="aerodrome-indicator-tray" id="aerodromeTray">
           <span class="aerodrome-tag">AERODROME:</span>
           <span id="aerodromeIcaoText" class="aerodrome-code">ICAO: VECC // KOLKATA INTL</span>
         </div>
-
-        <!-- Mode Switcher (Standard / Aviation / Farmer) in Top-Right System Tray next to Clocks -->
-        <div class="mode-selector-tray" id="modeSelectorTray">
-          <button id="mode-btn-standard" type="button" class="mode-pill-btn is-active" onclick="setMode('standard')" title="Standard General Public Safety Mode">
-            🌐 STANDARD
-          </button>
-          <button id="mode-btn-aviation" type="button" class="mode-pill-btn" onclick="setMode('aviation')" title="Tactical Aviation Flight Briefing Mode">
-            ✈️ AVIATION
-          </button>
-          <button id="mode-btn-farmer" type="button" class="mode-pill-btn" onclick="setMode('farmer')" title="Agro-Tactical Krishi Scientist & Farmer Advisory Mode">
-            🌾 FARMER
-          </button>
-        </div>
-        <div class="clock-group">
-          <span>UTC: <strong id="utcClock">--:--:--</strong></span>
-          <span>IST: <strong id="istClock">--:--:--</strong></span>
-        </div>
-        <div class="status-pill">
-          <span class="indicator-dot" id="systemIndicator"></span>
-          <span id="systemStatusText" data-t="SYSTEM_NOMINAL">SYS_ONLINE</span>
-        </div>
+        <span>UTC: <strong id="utcClock">--:--:--</strong></span>
+        <span>IST: <strong id="istClock">--:--:--</strong></span>
+        <span class="indicator-dot" id="systemIndicator"></span>
+        <span id="systemStatusText" data-t="SYSTEM_NOMINAL">SYS_ONLINE</span>
       </div>
     </header>
 
-    <!-- Ticker Tape -->
-    <section class="ticker-tape" aria-label="Synoptic Weather Ticker">
-      <div class="ticker-scroll-window">
-        <div class="ticker-track" id="tickerTrack">
-          MONITORING BAY OF BENGAL &amp; INDIAN BASIN // SYSTEM NOMINAL // WAITING FOR REGIONAL TELEMETRY...
+    <!-- Alert bars — both always visible (exact zip) -->
+    <div class="alert-stack">
+      <div class="ticker-tape alert-bar alert-bar-warn" aria-label="Synoptic Weather Ticker">
+        <div class="ticker-scroll-window">
+          <div class="ticker-track" id="tickerTrack">⚠ &nbsp;LOW PRESSURE SYSTEM ACTIVE OVER THE BAY OF BENGAL.</div>
         </div>
       </div>
-    </section>
-
-    <!-- Emergency Crisis Banner (Triggered in crisis-mode) -->
-    <div class="crisis-banner" id="crisisBanner" role="alert">
-      <span>&#9888; CRITICAL METEOROLOGICAL ALERT DETECTED &#8212; HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>
-      <span style="font-size: 10px; opacity: 0.85;">REVIEW TACTICAL RADAR HAZARD OVERLAY IMMEDIATELY</span>
+      <div class="crisis-banner alert-bar alert-bar-crit" id="crisisBanner" role="alert">
+        <span>⛔ CRITICAL METEOROLOGICAL ALERT — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>
+        <span style="margin-left: auto; font-size: 11px; opacity: 0.75;">REVIEW HAZARD OVERLAY IMMEDIATELY</span>
+      </div>
     </div>
 
-    <!-- Main Terminal Workspace -->
-    <main class="terminal-workspace">
-      <!-- Left Column: AI Query Bot & Chat Stream (60%) -->
-      <section class="terminal-chat-panel">
-        <div class="panel-header">
-          <span>AI QUERY BOT</span>
-        </div>
+    <!-- Main grid -->
+    <main class="terminal-workspace main-grid">
 
-        <!-- Chat Stream Window -->
-        <div class="chat-stream" id="chatStream" aria-live="polite">
+      <!-- LEFT: Chat -->
+      <section class="terminal-chat-panel">
+        <div class="chat-stream chat-scroll" id="chatStream" aria-live="polite">
           <div class="message-entry bot-message" id="initialWelcomeMessage">
-            <span class="message-prefix">INITIALIZATION COMPLETE</span>
+            <span class="message-prefix">METEOROLOGICAL INTELLIGENCE</span>
             <div class="message-content">
-              <p>WeatherGPT Terminal connected to Ministry of Earth Sciences (MoES) intelligence &amp; Open-Meteo telemetry stream.</p>
-              <p>Query meteorological status, low pressure systems, alerts, or disaster SOPs. Inquire in English or Indian regional languages.</p>
+              <p>Yes, a severe thunderstorm and heavy rain warning is active for Kolkata. A strong low pressure system over the Bay of Bengal is driving conditions — expect lightning, gusty winds of 45–55 km/h, and heavy rainfall across Kolkata, Howrah, and South 24 Parganas over the next 3 hours.</p>
+              <p>Current conditions: 26.9°C, humidity at 97%, winds at 2.7 km/h surface velocity. Conditions are expected to deteriorate rapidly.</p>
+              <p>🔴 Extreme caution advised. A severe cyclonic storm alert has been issued. Stay indoors and monitor official IMD bulletins.</p>
             </div>
           </div>
         </div>
 
-        <!-- Terminal Composer Area -->
         <div class="terminal-composer">
-          <!-- Quick Prompts Bar: Universal Human-Intent Actions -->
           <div class="quick-prompts-bar" id="quickPromptsBar">
-            <button
-              class="quick-prompt-btn"
-              type="button"
-              data-t="QUERY_SAFETY"
-              onclick="sendQuickQuery(this.textContent)"
-            >
-              Is it safe to go out right now?
-            </button>
-            <button
-              class="quick-prompt-btn"
-              type="button"
-              data-t="QUERY_RAIN"
-              onclick="sendQuickQuery(this.textContent)"
-            >
-              Will it rain in the next hour?
-            </button>
-            <button
-              class="quick-prompt-btn"
-              type="button"
-              data-t="QUERY_HISTORY"
-              onclick="sendQuickQuery(this.textContent)"
-            >
-              How was the weather yesterday?
-            </button>
-            <button
-              class="quick-prompt-btn"
-              type="button"
-              data-t="QUERY_CROP"
-              onclick="sendQuickQuery(this.textContent)"
-            >
-              Give me today's crop advisory.
-            </button>
+            <button class="quick-prompt-btn quick-tag" type="button" data-t="QUERY_SAFETY" onclick="sendQuickQuery(this.textContent)">&gt; Bay of Bengal Systems</button>
+            <button class="quick-prompt-btn quick-tag" type="button" data-t="QUERY_RAIN" onclick="sendQuickQuery(this.textContent)">&gt; Kolkata Weather &amp; Alerts</button>
+            <button class="quick-prompt-btn quick-tag" type="button" data-t="QUERY_HISTORY" onclick="sendQuickQuery(this.textContent)">&gt; NDMA Flood SOPs</button>
+            <button class="quick-prompt-btn quick-tag" type="button" data-t="QUERY_CROP" onclick="sendQuickQuery(this.textContent)">&gt; Delhi NCR Advisory</button>
           </div>
 
-          <!-- Command Input Row -->
           <form id="commandForm" autocomplete="off">
             <div class="input-controls-row">
-              <span class="prompt-prefix">CMD&gt;</span>
-              <input
-                type="text"
-                class="command-input"
-                id="queryInput"
-                placeholder="Enter meteorological query or terminal command..."
-                data-t="INPUT_PLACEHOLDER"
-                required
-              />
-
+              <input type="text" class="command-input cmd-input" id="queryInput" placeholder="Ask WeatherGPT…" data-t="INPUT_PLACEHOLDER" required />
               <div class="action-buttons-group">
-                <!-- Regional Language Select (22 Scheduled Indian Languages + English + Auto) -->
-                <select id="languageSelect" class="terminal-select" title="Target Language">
-                  <option value="auto" selected>LANG: AUTO (Auto-Detect)</option>
-                  <option value="en">LANG: EN (English)</option>
-                  <option value="hi">LANG: HI (हिंदी)</option>
-                  <option value="bn">LANG: BN (বাংলা)</option>
-                  <option value="mr">LANG: MR (मराठी)</option>
-                  <option value="ta">LANG: TA (தமிழ்)</option>
-                  <option value="te">LANG: TE (తెలుగు)</option>
-                  <option value="gu">LANG: GU (ગુજરાતી)</option>
-                  <option value="kn">LANG: KN (ಕನ್ನಡ)</option>
-                  <option value="ml">LANG: ML (മലയാളം)</option>
-                  <option value="pa">LANG: PA (ਪੰਜਾਬੀ)</option>
-                  <option value="or">LANG: OR (ଓଡ଼ିଆ)</option>
-                  <option value="as">LANG: AS (অসমীয়া)</option>
-                  <option value="ur">LANG: UR (اردو)</option>
-                  <option value="sa">LANG: SA (संस्कृतम्)</option>
-                  <option value="ne">LANG: NE (नेपाली)</option>
-                  <option value="kok">LANG: KOK (कोंकणी)</option>
-                  <option value="mai">LANG: MAI (मैथिली)</option>
-                  <option value="brx">LANG: BRX (बड़ो)</option>
-                  <option value="doi">LANG: DOI (डोगरी)</option>
-                  <option value="ks">LANG: KS (کٲشُر)</option>
-                  <option value="sd">LANG: SD (سنڌي)</option>
-                  <option value="mni">LANG: MNI (মৈতৈলোন্)</option>
-                  <option value="sat">LANG: SAT (ᱥᱟᱱᱛᱟᱲᱤ)</option>
-                </select>
-
-                <!-- Microphone Voice Button -->
-                <button
-                  type="button"
-                  id="voiceBtn"
-                  class="terminal-btn mic-btn"
-                  title="Voice Input (Tap to record)"
-                  aria-label="Voice input"
-                >
+                <button type="button" id="voiceBtn" class="terminal-btn mic-btn" title="Voice Input" aria-label="Voice input">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="9" y="2" width="6" height="12" rx="3" />
                     <path d="M5 10c0 3.866 3.134 7 7 7s7-3.134 7-7" />
@@ -194,134 +98,138 @@
                     <line x1="8" y1="22" x2="16" y2="22" />
                   </svg>
                 </button>
-
-                <!-- Execute Button -->
-                <button type="submit" id="executeBtn" class="terminal-btn execute-btn" data-t="EXECUTE">
-                  EXECUTE &#8629;
-                </button>
+                <button type="submit" id="executeBtn" class="terminal-btn execute-btn exec-btn" data-t="EXECUTE">Send</button>
               </div>
             </div>
           </form>
 
-          <!-- Location Mode & Coordinates Status Strip -->
           <div class="location-status-strip">
-            <div class="location-mode-indicator">
-              <span data-t="LOC_MODE">LOC_MODE:</span>
-              <button type="button" class="mode-badge is-active" id="gpsModeBtn" data-t="GPS">GPS</button>
-              <button type="button" class="mode-badge" id="manualModeBtn" data-t="MANUAL">MANUAL</button>
-              <span id="locationSummaryText" data-t="AUTO_RESOLVE" style="color: var(--terminal-green); margin-left: 4px;">LOC: AUTO-RESOLVE</span>
+            <span class="muted mono" data-t="LOC_MODE">Location:</span>
+            <button type="button" class="mode-badge loc-btn is-active" id="gpsModeBtn" data-t="GPS">GPS</button>
+            <button type="button" class="mode-badge loc-btn" id="manualModeBtn" data-t="MANUAL">MANUAL</button>
+            <span id="locationSummaryText" data-t="AUTO_RESOLVE" class="design-hidden">LOC: AUTO-RESOLVE</span>
+            <div id="manualInputContainer" style="display: none; align-items: center; gap: 6px; margin-left: auto;">
+              <input type="text" id="manualLocationInput" class="command-input cmd-input" style="max-width: 200px; padding: 4px 10px; font-size: 12px;" placeholder="e.g. Kolkata, 700001" />
             </div>
-            <div id="manualInputContainer" style="display: none; align-items: center; gap: 4px;">
-              <span style="font-size: 9px; color: var(--text-muted);">CITY/PIN:</span>
-              <input
-                type="text"
-                id="manualLocationInput"
-                class="command-input"
-                style="border-bottom: 1px dashed var(--terminal-border); width: 140px; font-size: 11px; padding: 1px 4px;"
-                placeholder="e.g. Kolkata, 700001"
-              />
+            <div class="lang-select-wrap">
+              <span class="muted mono" style="font-size: 11px;">Lang:</span>
+              <select id="languageSelect" class="terminal-select" title="Target Language">
+                <option value="auto" selected>Auto</option>
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="bn">Bengali</option>
+                <option value="ta">Tamil</option>
+                <option value="te">Telugu</option>
+                <option value="mr">Marathi</option>
+                <option value="gu">Gujarati</option>
+                <option value="kn">Kannada</option>
+                <option value="ml">Malayalam</option>
+                <option value="pa">Punjabi</option>
+                <option value="or">Odia</option>
+                <option value="as">Assamese</option>
+                <option value="ur">Urdu</option>
+                <option value="sa">Sanskrit</option>
+                <option value="ne">Nepali</option>
+                <option value="kok">Konkani</option>
+                <option value="mai">Maithili</option>
+                <option value="brx">Bodo</option>
+                <option value="doi">Dogri</option>
+                <option value="ks">Kashmiri</option>
+                <option value="sd">Sindhi</option>
+                <option value="mni">Manipuri</option>
+                <option value="sat">Santali</option>
+              </select>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Right Column: Tactical Radar & Telemetry (40%) -->
+      <!-- RIGHT: Map + Metrics -->
       <section class="terminal-telemetry-panel">
-        <!-- Leaflet Radar Map Window -->
-        <div class="radar-wrapper">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 700; letter-spacing: 0.5px;">GEOSPATIAL HAZARD OVERLAY</span>
-            <div class="map-view-switch-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
-              <button id="agri-scan-toggle" type="button" onclick="toggleAgriScan()" class="agri-scan-toggle-btn" title="Toggle ESA WorldCover 10m Cropland Satellite Mask (Class 40: Cultivated Fields)">
-                🌾 AGRI_SCAN
-              </button>
-              <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Toggle Tactical Grid / Live Satellite Imagery">
-                RADAR_LITE
-              </button>
-            </div>
-          </div>
-
-          <div id="radarMap" class="h-full w-full relative"></div>
-          <div class="radar-sweep-badge status-glow" id="radarBadge">RADAR: SWEEP ACTIVE</div>
-        </div>
-
-        <!-- Temporal Analysis Toolbar -->
-        <div class="local-env-toolbar">
-          <div class="interval-btn-row" id="intervalBtnRow">
-            <button type="button" class="interval-btn" data-interval="1h">[1H]</button>
-            <button type="button" class="interval-btn" data-interval="6h">[6H]</button>
-            <button type="button" class="interval-btn is-active" data-interval="24h">[24H]</button>
-            <button type="button" class="interval-btn" data-interval="48h">[48H]</button>
-            <button type="button" class="interval-btn" data-interval="7d">[7D]</button>
+        <div class="panel-header">
+          <span class="mono">HAZARD MAP</span>
+          <div class="map-view-switch-wrap" style="margin-left: auto; display: inline-flex; gap: 6px;">
+            <button id="agri-scan-toggle" type="button" onclick="toggleAgriScan()" class="agri-scan-toggle-btn" title="Agri-scan">Agri-scan</button>
+            <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Satellite">Satellite</button>
           </div>
         </div>
 
-        <!-- Telemetry Gauges Grid -->
-        <div class="telemetry-grid">
-          <!-- Digital Temperature Display (Swappable to Visibility in Aviation Mode) -->
-          <div class="telemetry-card" id="telemetryCard1">
-            <div class="telemetry-card-header">
-              <span data-t="TEMPERATURE" id="telemetryCard1Title">01 // DIGITAL TEMPERATURE</span>
-              <span data-t="THERMAL" id="telemetryCard1Badge">THERMAL</span>
-            </div>
-            <div class="telemetry-card-body">
-              <span class="telemetry-value-large" id="metricTemp" data-id="telemetryTemp">--&#176;C</span>
-              <span class="telemetry-sub" id="telemetryTempSub">REAL-TIME TELEMETRY</span>
+        <div class="telemetry-body">
+          <div class="radar-wrapper map-wrap">
+            <div id="radarMap" class="h-full w-full relative"></div>
+            <div class="radar-sweep-badge" id="radarBadge">RADAR: SWEEP ACTIVE</div>
+          </div>
+
+          <div class="local-env-toolbar">
+            <div class="interval-btn-row" id="intervalBtnRow">
+              <button type="button" class="interval-btn range-btn" data-interval="1h">1H</button>
+              <button type="button" class="interval-btn range-btn" data-interval="6h">6H</button>
+              <button type="button" class="interval-btn range-btn is-active" data-interval="24h">24H</button>
+              <button type="button" class="interval-btn range-btn" data-interval="48h">48H</button>
+              <button type="button" class="interval-btn range-btn" data-interval="7d">7D</button>
             </div>
           </div>
 
-          <!-- Humidity / Runway Visual Range Gauge -->
-          <div class="telemetry-card">
-            <div class="telemetry-card-header">
-              <span data-t="HUMIDITY" id="telemetryCard2Title">02 // HUMIDITY RATIO</span>
-              <span data-t="MOISTURE" id="telemetryCard2Badge">MOISTURE</span>
-            </div>
-            <div class="telemetry-card-body">
-              <span class="telemetry-value-medium" id="metric2Val" data-id="telemetryHumidity">--%</span>
-              <div class="humidity-bar-track" title="Humidity / RVR Ratio Bar">
-                <div class="humidity-bar-fill" id="metric2Bar" data-id="humidityBarFill" style="width: 0%;"></div>
+          <div class="telemetry-grid">
+            <div class="telemetry-card metric-card" id="telemetryCard1">
+              <div class="telemetry-card-header">
+                <span class="metric-label" data-t="TEMPERATURE" id="telemetryCard1Title">Temperature</span>
+                <span class="metric-badge" data-t="THERMAL" id="telemetryCard1Badge">THERMAL</span>
               </div>
-              <span class="telemetry-sub" id="telemetryHumiditySub">RELATIVE HUMIDITY</span>
-            </div>
-          </div>
-
-          <!-- Wind Speed Gauge / Drift & Spray Window -->
-          <div class="telemetry-card" id="telemetryCard3">
-            <div class="telemetry-card-header">
-              <span data-t="WIND_VELOCITY" id="telemetryCard3Title">03 // WIND VELOCITY</span>
-              <span data-t="ANEMOMETER" id="telemetryCard3Badge">ANEMOMETER</span>
-            </div>
-            <div class="telemetry-card-body">
-              <span class="telemetry-value-medium" id="telemetryWind">-- km/h</span>
-              <span class="telemetry-sub" id="telemetryWindSub">SURFACE VELOCITY</span>
-            </div>
-          </div>
-
-          <!-- Pressure / Status Gauge -->
-          <!-- Pressure / Status Gauge -->
-          <div class="telemetry-card" id="telemetryCard4">
-            <div class="telemetry-card-header">
-              <span data-t="BAROMETRIC" id="telemetryCard4Title">04 // BAROMETRIC / HAZARDS</span>
-              <span data-t="STABILITY" id="telemetryCard4Badge">STABILITY</span>
-            </div>
-            <div class="telemetry-card-body">
-              <span class="telemetry-value-medium" id="metricAlerts" data-id="telemetryAlertsCount" style="color: var(--terminal-green);">0 ACTIVE</span>
-              <span class="telemetry-sub" id="telemetryBaroSub" data-t="ACTIVE_BULLETINS">IMD BULLETINS TRACKED</span>
-            </div>
-          </div>
-
-          <!-- Aviation METAR & Runway Condition Report (Active in Aviation Mode) -->
-          <div class="telemetry-card aviation-metar-card" id="aviationMetarCard" style="grid-column: 1 / -1; display: none;">
-            <div class="telemetry-card-header" style="display: flex; justify-content: space-between; align-items: center;">
-              <span id="metarCardTitle" style="color: var(--accent); font-weight: 700; letter-spacing: 0.5px;">SYS_METAR_TAF // RUNWAY_CONDITION_REPORT</span>
-              <span id="metarCardBadge" class="radar-sweep-badge" style="font-size: 9px; padding: 1px 6px;">LIVE IMD MWO</span>
-            </div>
-            <div class="telemetry-card-body" style="padding: 6px 0;">
-              <div id="metarRawDisplay" style="font-family: monospace; font-size: 11px; letter-spacing: 0.5px; color: var(--accent); word-break: break-all;">
-                METAR VECC 101830Z 02008KT 6000 FEW025 28/22 Q1013 NOSIG
+              <div class="telemetry-card-body">
+                <span class="telemetry-value-large metric-val" id="metricTemp" data-id="telemetryTemp">--°C</span>
+                <span class="telemetry-sub muted" id="telemetryTempSub">Feels like --</span>
               </div>
-              <div id="metarFlightRulesDisplay" style="font-size: 10px; color: var(--text-muted); margin-top: 4px; font-weight: 600;">
-                DECISION SUPPORT: 🟢 VFR (SUITABLE) // DGCA CAR SERIES M COMPLIANT
+            </div>
+
+            <div class="telemetry-card metric-card">
+              <div class="telemetry-card-header">
+                <span class="metric-label" data-t="HUMIDITY" id="telemetryCard2Title">Humidity</span>
+                <span class="metric-badge" data-t="MOISTURE" id="telemetryCard2Badge">MOISTURE</span>
+              </div>
+              <div class="telemetry-card-body">
+                <span class="telemetry-value-medium metric-val" id="metric2Val" data-id="telemetryHumidity">--%</span>
+                <div class="humidity-bar-track">
+                  <div class="humidity-bar-fill" id="metric2Bar" data-id="humidityBarFill" style="width: 0%;"></div>
+                </div>
+                <span class="telemetry-sub muted" id="telemetryHumiditySub">Relative humidity</span>
+              </div>
+            </div>
+
+            <div class="telemetry-card metric-card" id="telemetryCard3">
+              <div class="telemetry-card-header">
+                <span class="metric-label" data-t="WIND_VELOCITY" id="telemetryCard3Title">Wind Velocity</span>
+                <span class="metric-badge" data-t="ANEMOMETER" id="telemetryCard3Badge">ANEMOMETER</span>
+              </div>
+              <div class="telemetry-card-body">
+                <span class="telemetry-value-medium metric-val" id="telemetryWind">-- km/h</span>
+                <span class="telemetry-sub muted" id="telemetryWindSub">Surface velocity</span>
+              </div>
+            </div>
+
+            <div class="telemetry-card metric-card" id="telemetryCard4">
+              <div class="telemetry-card-header">
+                <span class="metric-label" data-t="BAROMETRIC" id="telemetryCard4Title">Active Hazards</span>
+                <span class="metric-badge" data-t="STABILITY" id="telemetryCard4Badge">STABILITY</span>
+              </div>
+              <div class="telemetry-card-body">
+                <span class="telemetry-value-medium metric-val" id="metricAlerts" data-id="telemetryAlertsCount" style="color: var(--alert-crit);">0 ACTIVE</span>
+                <span class="telemetry-sub muted" id="telemetryBaroSub" data-t="ACTIVE_BULLETINS">IMD bulletins tracked</span>
+              </div>
+            </div>
+
+            <div class="telemetry-card aviation-metar-card" id="aviationMetarCard" style="display: none;">
+              <div class="telemetry-card-header">
+                <span id="metarCardTitle" class="mono" style="font-size: 10px; color: var(--accent); letter-spacing: 0.08em; opacity: 0.8;">SYS_METAR_TAF // RUNWAY_CONDITION_REPORT</span>
+                <span id="metarCardBadge" class="design-hidden">LIVE IMD MWO</span>
+              </div>
+              <div class="telemetry-card-body">
+                <div id="metarRawDisplay" class="mono muted" style="font-size: 11px; line-height: 1.7;">
+                  METAR VECC 101830Z 02008KT 6000 FEW025 28/22 Q1013 NOSIG
+                </div>
+                <div id="metarFlightRulesDisplay" class="mono muted" style="font-size: 11px; margin-top: 4px;">
+                  DECISION SUPPORT: 🟢 VFR (SUITABLE) // DGCA CAR SERIES M COMPLIANT
+                </div>
               </div>
             </div>
           </div>
@@ -329,43 +237,90 @@
       </section>
     </main>
 
-    <!-- Terminal Footer -->
-    <footer class="terminal-footer">
-      <div>
-        <span>&#169; MINISTRY OF EARTH SCIENCES // METEOROLOGICAL INTELLIGENCE NETWORK</span>
+    <!-- FAQ — exact zip copy -->
+    <section class="faq-section" aria-label="Frequently Asked Questions">
+      <div class="faq-inner">
+        <h2 class="faq-heading mono">Frequently Asked Questions</h2>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary class="faq-q">How does WeatherGPT generate alerts?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">WeatherGPT aggregates real-time data from IMD, NDMA, and regional meteorological stations, then uses AI to analyse patterns and generate severity-ranked alerts in plain language across multiple Indian languages.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">What languages are supported?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">The AI Query Bot supports auto-detection across major Indian languages including Hindi, Tamil, Bengali, Telugu, Marathi, and English. Responses are generated in the detected language automatically.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">How often is weather data updated?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">Core weather metrics refresh every 10 minutes. Hazard overlays and severe weather alerts update in near real-time as new bulletins are issued by IMD and NDMA.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">What is the difference between GPS and Manual location mode?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">GPS mode automatically detects your current location for hyper-local weather data. Manual mode lets you enter any city name, district, or coordinates to get weather information for a specific area.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Who provides the underlying weather data?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">Data is sourced from the India Meteorological Department (IMD), National Disaster Management Authority (NDMA), and Open-Meteo for extended global coverage and historical analysis.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Is WeatherGPT free to use?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">Yes — WeatherGPT is a public service provided under the Ministry of Earth Sciences meteorological intelligence network. All alerts and forecasts are freely accessible to citizens.</div>
+          </details>
+        </div>
       </div>
-      <div>
-        <span id="securityVerifiedBadge" class="security-verified-badge" data-t="SECURITY_VERIFIED" title="Security Integrity Verified">SECURITY: VERIFIED</span>
-        <span style="margin: 0 8px;">|</span>
-        <span class="footer-system-opt" data-t="GRID_OPTIMAL">GRID: OPTIMAL</span>
+    </section>
+
+    <footer class="terminal-footer">
+      <span class="muted mono">© Ministry of Earth Sciences</span>
+      <div class="footer-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="securityVerifiedBadge" class="security-verified-badge mono muted" data-t="SECURITY_VERIFIED">SYS_ONLINE</span>
+        <span class="footer-system-opt design-hidden" data-t="GRID_OPTIMAL">GRID: OPTIMAL</span>
       </div>
     </footer>
   </div>
 
-  <!-- Source Inspection Modal Backdrop -->
   <div class="source-modal-backdrop" id="sourceModal" role="dialog" aria-modal="true" aria-labelledby="sourceModalTitle">
     <div class="source-modal-window">
       <div class="source-modal-header">
         <span id="sourceModalTitle">SOURCE INSPECTION // RAG DOCUMENT</span>
         <button type="button" class="source-close-btn" id="closeSourceModalBtn" aria-label="Close modal">&#10005;</button>
       </div>
-      <div class="source-modal-body" id="sourceModalContent">
-        <!-- Content injected dynamically -->
-      </div>
-      <div class="source-modal-meta" id="sourceModalMeta">
-        <!-- Meta info injected dynamically -->
-      </div>
-      <div class="source-modal-actions" style="padding: 10px 14px; border-top: 1px solid var(--terminal-border); display: flex; justify-content: flex-end; background: #080a0c;">
-        <a id="sourceDocLink" class="source-doc-btn" target="_blank" rel="noopener" href="/data/national_disaster_management_plan.pdf" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: #00FF41; color: #000000; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; text-decoration: none; border-radius: 2px;">
-          <span>&#128196; VIEW DOCUMENT (PDF)</span> &gt;&gt;
+      <div class="source-modal-body" id="sourceModalContent"></div>
+      <div class="source-modal-meta" id="sourceModalMeta"></div>
+      <div class="source-modal-actions" style="padding: 10px 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: var(--surface);">
+        <a id="sourceDocLink" class="source-doc-btn" target="_blank" rel="noopener" href="/data/national_disaster_management_plan.pdf" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; text-decoration: none; font-size: 11px; font-weight: 700;">
+          <span>VIEW DOCUMENT (PDF)</span> &gt;&gt;
         </a>
       </div>
     </div>
   </div>
 
-  <!-- Localization Dictionary Script -->
-  <script src="ui_translations.js?v=4.8"></script>
-  <!-- Terminal Logic Script -->
-  <script src="app.js?v=4.8"></script>
+  <script src="ui_translations.js?v=5.0"></script>
+  <script src="app.js?v=5.0"></script>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var body = document.body;
+      var buttons = document.querySelectorAll('[data-theme-set]');
+      function applyTheme(theme) {
+        root.setAttribute('data-theme', theme);
+        body.classList.remove('theme-dark', 'theme-light', 'theme-legacy');
+        body.classList.add('theme-' + theme);
+        buttons.forEach(function (btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-theme-set') === theme);
+        });
+        try { localStorage.setItem('weathergpt-theme', theme); } catch (e) {}
+      }
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          applyTheme(btn.getAttribute('data-theme-set'));
+        });
+      });
+      var saved = null;
+      try { saved = localStorage.getItem('weathergpt-theme'); } catch (e) {}
+      if (saved === 'light' || saved === 'dark' || saved === 'legacy') applyTheme(saved);
+    })();
+  </script>
 </body>
 </html>
