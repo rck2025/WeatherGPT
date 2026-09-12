@@ -11,6 +11,8 @@ def retrieve_documents(
     exclude_keywords: list[str] | None = None,
 ) -> List[Tuple[Document, float]]:
     """Retrieve relevant bulletins and return document-score pairs, optionally filtering out unwanted keywords."""
+    if vector_db is None:
+        return []
     try:
         fetch_k = k * 2 if exclude_keywords else k
         raw_results = vector_db.similarity_search_with_relevance_scores(query, k=fetch_k)

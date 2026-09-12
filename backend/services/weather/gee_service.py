@@ -381,6 +381,61 @@ class GEEService:
         self._cache[cache_key] = (now, tile_url)
         return tile_url
 
+    # Golden Amber Palette for Agro-Tactical Cropland Mask
+    CROPLAND_PALETTE = ["f59e0b"]
+
+    def get_cropland_mask_url(self) -> str:
+        """Task: ESA WorldCover 10m Cropland-Only Satellite Mask (Agro-Tactical Farmer Mode).
+
+        Source: ESA/WorldCover/v100 (10-meter global land cover).
+        Logic:
+          - Isolates pixel value 40: 'Cropland' (cultivated fields, herbaceous crops).
+          - Uses .updateMask(dataset.eq(40)) to completely suppress non-agricultural areas
+            (forests, urban concrete, open water, barren terrain).
+          - Applies high-contrast Golden Amber palette ['#f59e0b'] matching the Farmer Mode aesthetic.
+
+        ========================================================================
+        UPGRADE ROADMAP: ICRISAT 10M SOUTH ASIA IRRIGATED/RAINFED DATASET
+        ========================================================================
+        While ESA WorldCover 10m provides world-class 10-meter cropland delineation (Class 40),
+        WeatherGPT's technical roadmap includes direct ingestion of ICRISAT's 10m South Asia
+        Irrigated vs. Rainfed Cropland Land-Use Product.
+        This sovereign agricultural layer distinguishes between:
+          1. Canal-irrigated and tube-well irrigated parcels (continuous water supply)
+          2. Rainfed / dryland agricultural zones (monsoon precipitation dependent)
+        Once connected, WeatherGPT's Krishi Agromet AI Brain will automatically detect whether
+        a farmer's field is irrigated or rainfed, adjusting IMD GKMS irrigation warnings
+        and drought-mitigation advisories with research-institution precision.
+        ========================================================================
+
+        Returns:
+            Leaflet-compatible dynamic XYZ Tile URL.
+        """
+        if not self.ensure_initialized():
+            raise RuntimeError("Earth Engine is not initialized. Please verify backend/gee-key.json.")
+
+        cache_key = "cropland_mask_tile_url_v1"
+        now = time.monotonic()
+        if cache_key in self._cache:
+            ts, url = self._cache[cache_key]
+            if now - ts < self._cache_ttl:
+                return url
+
+        # ESA WorldCover 10m v100 - single unified global collection
+        dataset = ee.ImageCollection("ESA/WorldCover/v100").first()
+        
+        # Pixel value 40 represents cultivated cropland
+        cropland_image = dataset.updateMask(dataset.eq(40))
+
+        vis_params = {
+            "palette": self.CROPLAND_PALETTE,
+        }
+
+        map_id = cropland_image.getMapId(vis_params)
+        tile_url = map_id["tile_fetcher"].url_format
+        self._cache[cache_key] = (now, tile_url)
+        return tile_url
+
     def get_area_stats(self, lat: float, lon: float, radius_km: float = 10.0) -> Dict[str, Any]:
         """Task 4: AI Context Extraction.
 
@@ -492,6 +547,7 @@ get_precipitation_tile_url = gee_service.get_precipitation_tile_url
 get_low_pressure_tile_url = gee_service.get_low_pressure_tile_url
 get_precipitation_mask_tile_url = gee_service.get_precipitation_mask_tile_url
 get_scientific_composite_tile_url = gee_service.get_scientific_composite_tile_url
+get_cropland_mask_url = gee_service.get_cropland_mask_url
 get_area_stats = gee_service.get_area_stats
 
 

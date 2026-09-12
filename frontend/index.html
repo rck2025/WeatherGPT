@@ -42,13 +42,16 @@
           <span id="aerodromeIcaoText" class="aerodrome-code">ICAO: VECC // KOLKATA INTL</span>
         </div>
 
-        <!-- Mode Switcher (Standard / Aviation) in Top-Right System Tray next to Clocks -->
+        <!-- Mode Switcher (Standard / Aviation / Farmer) in Top-Right System Tray next to Clocks -->
         <div class="mode-selector-tray" id="modeSelectorTray">
           <button id="mode-btn-standard" type="button" class="mode-pill-btn is-active" onclick="setMode('standard')" title="Standard General Public Safety Mode">
             🌐 STANDARD
           </button>
           <button id="mode-btn-aviation" type="button" class="mode-pill-btn" onclick="setMode('aviation')" title="Tactical Aviation Flight Briefing Mode">
             ✈️ AVIATION
+          </button>
+          <button id="mode-btn-farmer" type="button" class="mode-pill-btn" onclick="setMode('farmer')" title="Agro-Tactical Krishi Scientist & Farmer Advisory Mode">
+            🌾 FARMER
           </button>
         </div>
         <div class="clock-group">
@@ -229,6 +232,9 @@
           <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-weight: 700; letter-spacing: 0.5px;">GEOSPATIAL HAZARD OVERLAY</span>
             <div class="map-view-switch-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+              <button id="agri-scan-toggle" type="button" onclick="toggleAgriScan()" class="agri-scan-toggle-btn" title="Toggle ESA WorldCover 10m Cropland Satellite Mask (Class 40: Cultivated Fields)">
+                🌾 AGRI_SCAN
+              </button>
               <button id="map-toggle" type="button" onclick="toggleMapMode()" class="map-toggle-btn" title="Toggle Tactical Grid / Live Satellite Imagery">
                 RADAR_LITE
               </button>
@@ -279,11 +285,11 @@
             </div>
           </div>
 
-          <!-- Wind Speed Gauge -->
-          <div class="telemetry-card">
+          <!-- Wind Speed Gauge / Drift & Spray Window -->
+          <div class="telemetry-card" id="telemetryCard3">
             <div class="telemetry-card-header">
-              <span data-t="WIND_VELOCITY">03 // WIND VELOCITY</span>
-              <span data-t="ANEMOMETER">ANEMOMETER</span>
+              <span data-t="WIND_VELOCITY" id="telemetryCard3Title">03 // WIND VELOCITY</span>
+              <span data-t="ANEMOMETER" id="telemetryCard3Badge">ANEMOMETER</span>
             </div>
             <div class="telemetry-card-body">
               <span class="telemetry-value-medium" id="telemetryWind">-- km/h</span>

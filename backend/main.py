@@ -431,7 +431,7 @@ async def execute_weather_logic(request: ChatRequest) -> ChatResponse:
             voice_text = translate_units_to_native(text_for_synthesis, lang=target_lang)
             chat_response.audio_url = await language_service.synthesize_audio(
                 voice_text,
-                target_lang,
+                target_lang=target_lang,
             )
 
         chat_response.detected_language = target_lang
@@ -467,6 +467,7 @@ async def voice_process(
     language: str | None = Form(None),
     user_language: str | None = Form(None),
     user_language_query: str | None = Query(None, alias="user_language"),
+    mode: str | None = Form("standard"),
 ) -> ChatResponse:
     """Seamless Voice Loop endpoint:
     1. Ingest audio blob from frontend.
@@ -534,6 +535,7 @@ async def voice_process(
             location=location_input,
             language=locked_language_code,
             channel="voice",
+            mode=mode or "standard",
         )
 
         chat_resp = await execute_weather_logic(chat_req)
@@ -836,10 +838,29 @@ async def get_satellite_layer(layer_id: str):
             logging.error("Failed to generate precipitation tile URL: %s", exc)
             raise HTTPException(status_code=500, detail=f"Precipitation layer generation failed: {exc}")
 
+    elif normalized in ("cropland", "crops", "agri_scan", "agri", "farmer", "worldcover", "agriculture"):
+        try:
+            tile_url = gee_service.get_cropland_mask_url()
+            return {
+                "status": "success",
+                "layer_id": "cropland",
+                "title": "ESA WorldCover 10m Cropland Mask",
+                "source": "ESA WorldCover 10m v100 (Class 40: Cultivated Cropland)",
+                "tile_url": tile_url,
+                "palette": gee_service.CROPLAND_PALETTE,
+                "opacity": 0.6,
+                "attribution": "ESA WorldCover 10m / Google Earth Engine",
+                "min_zoom": 1,
+                "max_zoom": 18,
+            }
+        except Exception as exc:
+            logging.error("Failed to generate cropland mask tile URL: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Cropland mask generation failed: {exc}")
+
     else:
         raise HTTPException(
             status_code=404,
-            detail=f"Unknown satellite layer '{layer_id}'. Available layers: 'scientific_composite', 'low_pressure', 'precipitation', 'thermal'."
+            detail=f"Unknown satellite layer '{layer_id}'. Available layers: 'scientific_composite', 'low_pressure', 'precipitation', 'thermal', 'cropland'."
         )
 
 

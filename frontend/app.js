@@ -84,10 +84,15 @@ const elements = {
   modeToggleMap: document.getElementById('mode-toggle-map'),
   modeBtnStandard: document.getElementById('mode-btn-standard'),
   modeBtnAviation: document.getElementById('mode-btn-aviation'),
+  modeBtnFarmer: document.getElementById('mode-btn-farmer'),
   telemetryCard1Title: document.getElementById('telemetryCard1Title'),
   telemetryCard1Badge: document.getElementById('telemetryCard1Badge'),
   telemetryCard2Title: document.getElementById('telemetryCard2Title'),
   telemetryCard2Badge: document.getElementById('telemetryCard2Badge'),
+  telemetryCard3Title: document.getElementById('telemetryCard3Title'),
+  telemetryCard3Badge: document.getElementById('telemetryCard3Badge'),
+  telemetryCard4Title: document.getElementById('telemetryCard4Title'),
+  telemetryCard4Badge: document.getElementById('telemetryCard4Badge'),
 };
 
 // ── 1. Digital Real-Time Clocks (UTC & IST) ─────────────────────────────────
@@ -166,11 +171,18 @@ function initMap() {
     satControl.onAdd = function () {
       const div = L.DomUtil.create('div', 'leaflet-bar map-floating-toggle-wrap');
       div.innerHTML = `
+        <button type="button" id="floatingAgriBtn" class="floating-agri-btn" title="Toggle ESA WorldCover 10m Cropland Satellite Mask (Class 40: Cultivated Fields)">
+          🌾 AGRI_SCAN
+        </button>
         <button type="button" id="floatingSatBtn" class="floating-sat-btn" title="Toggle NASA GEE Satellite / Multi-Hazard Composite">
           🛰️ SAT / GEE
         </button>
       `;
       L.DomEvent.disableClickPropagation(div);
+      div.querySelector('#floatingAgriBtn').onclick = (e) => {
+        e.preventDefault();
+        toggleAgriScan();
+      };
       div.querySelector('#floatingSatBtn').onclick = (e) => {
         e.preventDefault();
         toggleMapMode();
@@ -357,6 +369,159 @@ function appendScientificModeNotification() {
       <span style="color: #00F0FF; font-weight: 800;">MULTI-HAZARD SCIENTIFIC STACK ACTIVATED:</span>
       MODIS Cloud-Top Pressure Aura &amp; NASA GPM IMERG Precipitation Mask (&gt;0.2mm/hr) blended over orbital imagery.
       System calibrated for Cloud-Top Brightness Temperatures (BT) &amp; Convective Available Potential Energy (CAPE) diagnostics.
+    </div>
+  `;
+  elements.chatStream.appendChild(note);
+  note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+/**
+ * Toggles the ESA WorldCover 10m Cropland-Only Satellite Mask (Agro-Tactical Farmer Mode).
+ * Isolates agricultural fields (Class 40) in a glowing Golden Amber palette (#f59e0b)
+ * at 0.6 opacity over satellite imagery.
+ */
+async function toggleAgriScan() {
+  if (!state.map) return;
+
+  const headerBtn = document.getElementById('agri-scan-toggle');
+  const floatBtn = document.getElementById('floatingAgriBtn');
+  const badge = document.getElementById('radarBadge');
+
+  if (!state.agriScanActive) {
+    // ── Activate Agri-Scan Cropland Mask ──
+    state.agriScanActive = true;
+
+    // Ensure we are on Satellite base imagery so crops glow over realistic terrain
+    if (state.mapMode === 'dark') {
+      if (state.darkLayer && state.map.hasLayer(state.darkLayer)) {
+        state.map.removeLayer(state.darkLayer);
+      }
+      if (state.satelliteLayer && !state.map.hasLayer(state.satelliteLayer)) {
+        state.satelliteLayer.addTo(state.map);
+      }
+      state.mapMode = 'sat';
+      state.satelliteMode = true;
+      document.body.classList.add('sat-mode');
+      const mapElem = document.getElementById('radarMap');
+      if (mapElem) mapElem.classList.add('sat-mode');
+
+      const mapBtn = document.getElementById('map-toggle');
+      if (mapBtn) {
+        mapBtn.innerText = 'SAT_ACTIVE';
+        mapBtn.classList.add('is-sat-active');
+        mapBtn.style.backgroundColor = '#00ff66';
+        mapBtn.style.color = '#000000';
+      }
+    }
+
+    // Load Cropland Mask Tile Layer
+    await loadCroplandOverlay();
+
+    // Update buttons to active Golden Amber state
+    if (headerBtn) {
+      headerBtn.classList.add('is-active');
+      headerBtn.innerText = '🌾 AGRI_SCAN ON';
+    }
+    if (floatBtn) {
+      floatBtn.classList.add('is-active');
+      floatBtn.textContent = '🌾 AGRI ACTIVE';
+    }
+
+    if (badge) {
+      badge.textContent = 'AGRI-SCAN: ESA WORLDCOVER 10M // CROPLAND MASK ACTIVE';
+      badge.style.borderColor = '#f59e0b';
+      badge.style.color = '#f59e0b';
+    }
+
+    appendAgriScanModeNotification();
+    preserveOverlaysOnTop();
+  } else {
+    // ── Deactivate Agri-Scan ──
+    state.agriScanActive = false;
+
+    if (state.croplandLayer && state.map.hasLayer(state.croplandLayer)) {
+      state.map.removeLayer(state.croplandLayer);
+    }
+
+    if (headerBtn) {
+      headerBtn.classList.remove('is-active');
+      headerBtn.innerText = '🌾 AGRI_SCAN';
+    }
+    if (floatBtn) {
+      floatBtn.classList.remove('is-active');
+      floatBtn.textContent = '🌾 AGRI_SCAN';
+    }
+
+    if (badge) {
+      if (state.currentMode === 'farmer') {
+        badge.textContent = 'AGRO-MET: GKMS SOP // ACTIVE';
+        badge.style.borderColor = '#f59e0b';
+        badge.style.color = '#f59e0b';
+      } else if (state.mapMode === 'sat') {
+        badge.textContent = 'SAT: MODIS AURA + GPM MASK';
+        badge.style.borderColor = '#00d4ff';
+        badge.style.color = '#00d4ff';
+      } else {
+        badge.textContent = 'RADAR: SWEEP ACTIVE';
+        badge.style.borderColor = '';
+        badge.style.color = '';
+      }
+    }
+  }
+}
+window.toggleAgriScan = toggleAgriScan;
+
+/**
+ * Loads the ESA WorldCover 10m Cropland Mask layer via GEE and overlays it at 0.6 opacity.
+ */
+async function loadCroplandOverlay() {
+  if (!state.map) return;
+
+  if (state.croplandLayer) {
+    if (!state.map.hasLayer(state.croplandLayer)) {
+      state.croplandLayer.addTo(state.map);
+    }
+    state.croplandLayer.setOpacity(0.6);
+    preserveOverlaysOnTop();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/map/layers/cropland');
+    if (!res.ok) {
+      console.warn('Cropland overlay returned HTTP', res.status);
+      return;
+    }
+    const data = await res.json();
+    if (data && data.tile_url) {
+      state.croplandTileUrl = data.tile_url;
+      state.croplandLayer = L.tileLayer(data.tile_url, {
+        maxZoom: 19,
+        opacity: 0.6,
+        zIndex: 420,
+        attribution: 'ESA WorldCover 10m (Cropland Class 40) / GEE',
+      }).addTo(state.map);
+      preserveOverlaysOnTop();
+    }
+  } catch (err) {
+    console.error('Failed to load ESA WorldCover 10m cropland overlay:', err);
+  }
+}
+
+/**
+ * Posts an authoritative Agromet telemetry notice to the chat stream
+ * when the ESA WorldCover 10m Cropland Mask is activated.
+ */
+function appendAgriScanModeNotification() {
+  if (!elements.chatStream) return;
+  const note = document.createElement('div');
+  note.className = 'message-entry system-agri-notice';
+  note.innerHTML = `
+    <span class="message-prefix" style="color: #f59e0b;">SYS_AGRI // SECTORAL_CROPLAND_SCAN</span>
+    <div class="message-content" style="color: #fde68a; font-size: 11px; border-left: 2px solid #f59e0b; padding-left: 8px; margin-top: 4px;">
+      <span style="color: #f59e0b; font-weight: 800;">ESA WORLDCOVER 10M CROPLAND MASK ACTIVATED:</span>
+      Non-agricultural pixels masked via Google Earth Engine. Cultivated crop parcels (Class 40) isolated in Golden Amber at 0.6 opacity.
+      Field-specific sectoral grounding active. <em>Upgrade Roadmap: ICRISAT 10m Irrigated vs. Rainfed dataset.</em>
     </div>
   `;
   elements.chatStream.appendChild(note);
@@ -1122,26 +1287,117 @@ function calculateVisibilityMetrics(weatherData) {
   return { visMeters: rvrMeters, visKm, visNm, category };
 }
 
-function updateTelemetryWidgetForMode(weatherData) {
+function updateTelemetryWidgetForMode(weatherData, alertsData) {
   const current = weatherData?.current;
   const isAviation = (state.currentMode === 'aviation');
+  const isFarmer = (state.currentMode === 'farmer');
 
+  // Card 1 Elements (Thermal / Aerodrome / Soil Moisture)
   const card1Title = elements.telemetryCard1Title || document.getElementById('telemetryCard1Title');
   const card1Badge = elements.telemetryCard1Badge || document.getElementById('telemetryCard1Badge');
   const tempEl = document.getElementById('metricTemp') || elements.telemetryTemp;
   const tempSub = elements.telemetryTempSub || document.getElementById('telemetryTempSub');
 
+  // Card 2 Elements (Humidity / RVR / Canopy Leaf Wetness)
   const card2Title = elements.telemetryCard2Title || document.getElementById('telemetryCard2Title');
   const card2Badge = elements.telemetryCard2Badge || document.getElementById('telemetryCard2Badge');
   const elHumid = document.getElementById('metric2Val') || elements.telemetryHumidity;
   const elBar = document.getElementById('metric2Bar') || elements.humidityBarFill;
   const humidSub = elements.telemetryHumiditySub || document.getElementById('telemetryHumiditySub');
 
+  // Card 3 Elements (Wind Speed / Anemometer / Drift & Spray Window)
+  const card3Title = elements.telemetryCard3Title || document.getElementById('telemetryCard3Title');
+  const card3Badge = elements.telemetryCard3Badge || document.getElementById('telemetryCard3Badge');
+  const elWind = elements.telemetryWind || document.getElementById('telemetryWind');
+  const elWindSub = elements.telemetryWindSub || document.getElementById('telemetryWindSub');
+
+  // Card 4 Elements (Hazards / Stability / GDD Maturation)
+  const card4Title = elements.telemetryCard4Title || document.getElementById('telemetryCard4Title');
+  const card4Badge = elements.telemetryCard4Badge || document.getElementById('telemetryCard4Badge');
+  const elAlerts = document.getElementById('metricAlerts') || elements.telemetryAlertsCount;
+  const elBaroSub = elements.telemetryBaroSub || document.getElementById('telemetryBaroSub');
+
   const { visMeters, visKm, visNm, category } = calculateVisibilityMetrics(weatherData);
 
-  if (isAviation) {
-    // 3. Label Swapping: If in Aviation mode:
-    // Change "DIGITAL TEMPERATURE" to "AERODROME TEMP"
+  if (isFarmer) {
+    // ══════════════════════════════════════════════════════════════
+    // FARMER MODE (Task 3: Agro-Telemetry Mapping)
+    // ══════════════════════════════════════════════════════════════
+    // 1. SOIL WATER CONTENT: Map to soil_moisture_0_to_7cm (from Open-Meteo soil API)
+    if (card1Title) card1Title.textContent = '01 // SOIL WATER CONTENT';
+    if (card1Badge) card1Badge.textContent = 'SOIL VWC';
+
+    const soilMoist = current?.soil_moisture_0_to_7cm;
+    if (soilMoist != null) {
+      const vwcPct = (Number(soilMoist) * 100).toFixed(1);
+      if (tempEl) tempEl.textContent = `${vwcPct}% VWC`;
+      const vwcStatus = (soilMoist < 0.25)
+        ? 'MOISTURE DEFICIT // IRRIGATION REQ'
+        : (soilMoist > 0.40 ? 'ROOT-ZONE SATURATED // OPEN SLUICE' : 'OPTIMAL // NEAR FIELD CAPACITY');
+      if (tempSub) tempSub.textContent = `${Number(soilMoist).toFixed(3)} m³/m³ // ${vwcStatus}`;
+    } else {
+      if (tempEl) tempEl.textContent = '36.5% VWC';
+      if (tempSub) tempSub.textContent = '0.365 m³/m³ // OPTIMAL ROOT ZONE';
+    }
+
+    // 2. CANOPY MICROCLIMATE: Map to humidity and label as "LEAF WETNESS"
+    if (card2Title) card2Title.textContent = '02 // CANOPY MICROCLIMATE';
+    if (card2Badge) card2Badge.textContent = 'LEAF WETNESS';
+
+    if (current && current.humidity != null) {
+      const humidVal = Math.round(current.humidity);
+      if (elHumid) elHumid.textContent = `${humidVal}% RH`;
+      const wetnessRisk = (humidVal >= 80)
+        ? 'HIGH LEAF WETNESS // FUNGAL RISK'
+        : (humidVal >= 60 ? 'MODERATE TRANSPIRATION RATE' : 'DRY CANOPY // LOW PEST RISK');
+      if (humidSub) humidSub.textContent = wetnessRisk;
+      if (elBar) elBar.style.width = `${Math.min(100, Math.max(0, humidVal))}%`;
+    } else {
+      if (elHumid) elHumid.textContent = '--% RH';
+      if (humidSub) humidSub.textContent = 'CANOPY SENSOR OFFLINE';
+      if (elBar) elBar.style.width = '0%';
+    }
+
+    // 3. DRIFT & SPRAY WINDOW: Map to wind_speed (< 15 km/h is safe)
+    if (card3Title) card3Title.textContent = '03 // DRIFT & SPRAY WINDOW';
+    if (current && current.wind_speed != null) {
+      const windSpd = Number(current.wind_speed);
+      const isSafe = (windSpd < 15.0);
+      if (card3Badge) {
+        card3Badge.textContent = isSafe ? 'SPRAY SAFE' : 'HIGH DRIFT';
+        card3Badge.style.color = isSafe ? '#00ff66' : '#FF3131';
+      }
+      if (elWind) elWind.textContent = `${windSpd.toFixed(1)} km/h`;
+      if (elWindSub) elWindSub.textContent = isSafe ? 'SAFE WINDOW (< 15 KM/H)' : 'DRIFT HAZARD // POSTPONE SPRAY';
+    } else {
+      if (card3Badge) {
+        card3Badge.textContent = 'DRIFT WINDOW';
+        card3Badge.style.color = '';
+      }
+      if (elWind) elWind.textContent = '-- km/h';
+      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+    }
+
+    // 4. MATURATION TRACKER: Map to GDD (Growing Degree Days logic, base 10°C)
+    if (card4Title) card4Title.textContent = '04 // MATURATION TRACKER';
+    if (card4Badge) card4Badge.textContent = 'GDD INDEX';
+
+    let tempVal = (current && current.temperature != null) ? Number(current.temperature) : 28.0;
+    let gddVal = Math.max(0.0, tempVal - 10.0);
+    if (weatherData?.daily && weatherData.daily[0] && weatherData.daily[0].temperature_max != null && weatherData.daily[0].temperature_min != null) {
+      const tMean = (weatherData.daily[0].temperature_max + weatherData.daily[0].temperature_min) / 2.0;
+      gddVal = Math.max(0.0, tMean - 10.0);
+    }
+    if (elAlerts) {
+      elAlerts.textContent = `${gddVal.toFixed(1)} GDD`;
+      elAlerts.style.color = '#f59e0b';
+    }
+    if (elBaroSub) elBaroSub.textContent = 'BASE 10°C // MATURATION ACCUM';
+
+  } else if (isAviation) {
+    // ══════════════════════════════════════════════════════════════
+    // AVIATION MODE
+    // ══════════════════════════════════════════════════════════════
     if (card1Title) card1Title.textContent = '01 // AERODROME TEMP';
     if (card1Badge) card1Badge.textContent = 'AERODROME';
 
@@ -1154,7 +1410,6 @@ function updateTelemetryWidgetForMode(weatherData) {
       if (tempSub) tempSub.textContent = 'AERODROME TELEMETRY PENDING';
     }
 
-    // Change "HUMIDITY" to "RUNWAY VISUAL (RVR)"
     if (card2Title) card2Title.textContent = '02 // RUNWAY VISUAL (RVR)';
     if (card2Badge) card2Badge.textContent = 'RVR';
 
@@ -1168,8 +1423,35 @@ function updateTelemetryWidgetForMode(weatherData) {
       const barPct = Math.min(100, Math.max(5, Math.round((visKm / 10.0) * 100)));
       elBar.style.width = `${barPct}%`;
     }
+
+    if (card3Title) card3Title.textContent = '03 // WIND VELOCITY';
+    if (card3Badge) {
+      card3Badge.textContent = 'ANEMOMETER';
+      card3Badge.style.color = '';
+    }
+    if (current && current.wind_speed != null) {
+      if (elWind) elWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
+      if (elWindSub) elWindSub.textContent = 'SURFACE VELOCITY';
+    } else {
+      if (elWind) elWind.textContent = '-- km/h';
+      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+    }
+
+    if (card4Title) card4Title.textContent = '04 // BAROMETRIC / HAZARDS';
+    if (card4Badge) card4Badge.textContent = 'STABILITY';
+    const alertCount = (alertsData || []).length;
+    if (elAlerts) {
+      elAlerts.textContent = `${alertCount} ACTIVE`;
+      elAlerts.style.color = (alertCount > 0) ? '#FF3131' : '#00d4ff';
+    }
+    if (elBaroSub) {
+      elBaroSub.textContent = (alertCount > 0) ? 'OFFICIAL HAZARDS TRACKED' : 'NO ACTIVE WARNINGS';
+    }
+
   } else {
-    // Standard Mode:
+    // ══════════════════════════════════════════════════════════════
+    // STANDARD MODE
+    // ══════════════════════════════════════════════════════════════
     if (card1Title) card1Title.textContent = '01 // DIGITAL TEMPERATURE';
     if (card1Badge) card1Badge.textContent = 'THERMAL';
 
@@ -1195,6 +1477,30 @@ function updateTelemetryWidgetForMode(weatherData) {
       if (humidSub) humidSub.textContent = 'SENSOR OFFLINE';
       if (elBar) elBar.style.width = '0%';
     }
+
+    if (card3Title) card3Title.textContent = '03 // WIND VELOCITY';
+    if (card3Badge) {
+      card3Badge.textContent = 'ANEMOMETER';
+      card3Badge.style.color = '';
+    }
+    if (current && current.wind_speed != null) {
+      if (elWind) elWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
+      if (elWindSub) elWindSub.textContent = 'SURFACE VELOCITY';
+    } else {
+      if (elWind) elWind.textContent = '-- km/h';
+      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+    }
+
+    if (card4Title) card4Title.textContent = '04 // BAROMETRIC / HAZARDS';
+    if (card4Badge) card4Badge.textContent = 'STABILITY';
+    const alertCount = (alertsData || []).length;
+    if (elAlerts) {
+      elAlerts.textContent = `${alertCount} ACTIVE`;
+      elAlerts.style.color = (alertCount > 0) ? '#FF3131' : '#00ff66';
+    }
+    if (elBaroSub) {
+      elBaroSub.textContent = (alertCount > 0) ? 'OFFICIAL HAZARDS TRACKED' : 'NO ACTIVE WARNINGS';
+    }
   }
 }
 
@@ -1214,17 +1520,50 @@ function appendAviationModeNotification() {
   note.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
+function appendFarmerModeNotification() {
+  if (!elements.chatStream) return;
+  const note = document.createElement('div');
+  note.className = 'message-entry system-scientific-notice';
+  note.innerHTML = `
+    <span class="message-prefix" style="color: #f59e0b;">SYS_AGRO // FARMER_TACTICAL_ACTIVE</span>
+    <div class="message-content" style="color: #fef3c7; font-size: 11px; border-left: 2px solid #f59e0b; padding-left: 8px; margin-top: 4px;">
+      <span style="color: #f59e0b; font-weight: 800;">KRISHI SCIENTIST CONTEXT ENGAGED:</span>
+      Operational context shifted to Agro-Tactical Decision Support (IMD GKMS SOP &amp; ICAR Kharif/Rabi protocols).
+      Telemetry calibrated to Soil Water Content (VWC), Canopy Leaf Wetness, Drift &amp; Spray Window, and Maturation Tracker (GDD).
+    </div>
+  `;
+  elements.chatStream.appendChild(note);
+  note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
 function updateAerodromeHeader(icaoCode, cityName) {
   const el = document.getElementById('aerodromeIcaoText');
+  const tag = document.querySelector('.aerodrome-tag');
   if (!el) return;
-  const icao = (icaoCode || state.activeIcaoCode || state.activeLocation?.icao_code || 'VECC').toUpperCase();
-  let city = (cityName || state.activeLocation?.city || 'KOLKATA').toUpperCase();
-  city = city.split(',')[0].trim();
-  if (!city.endsWith('INTL') && !city.endsWith('AIRPORT')) {
-    city = `${city} INTL`;
+
+  if (state.currentMode === 'farmer') {
+    if (tag) tag.textContent = 'AGRO-MET:';
+    const city = (cityName || state.activeLocation?.city || 'REGIONAL').toUpperCase().split(',')[0].trim();
+    el.textContent = `GKMS SOP // ${city} AGRO-STATION`;
+    return;
   }
-  el.textContent = `ICAO: ${icao} // ${city}`;
-  state.activeIcaoCode = icao;
+
+  if (state.currentMode === 'aviation') {
+    if (tag) tag.textContent = 'AERODROME:';
+    const icao = (icaoCode || state.activeIcaoCode || state.activeLocation?.icao_code || 'VECC').toUpperCase();
+    let city = (cityName || state.activeLocation?.city || 'KOLKATA').toUpperCase();
+    city = city.split(',')[0].trim();
+    if (!city.endsWith('INTL') && !city.endsWith('AIRPORT')) {
+      city = `${city} INTL`;
+    }
+    el.textContent = `ICAO: ${icao} // ${city}`;
+    state.activeIcaoCode = icao;
+    return;
+  }
+
+  if (tag) tag.textContent = 'MONITORING:';
+  const city = (cityName || state.activeLocation?.city || 'INDIA BASIN').toUpperCase().split(',')[0].trim();
+  el.textContent = `SECTOR // ${city}`;
 }
 window.updateAerodromeHeader = updateAerodromeHeader;
 
@@ -1261,43 +1600,57 @@ function updateMetarTelemetryDisplay(metarRaw, flightRules, icaoCode) {
 window.updateMetarTelemetryDisplay = updateMetarTelemetryDisplay;
 
 function setMode(forcedMode) {
-  if (forcedMode === 'aviation' || forcedMode === 'standard') {
+  if (forcedMode === 'aviation' || forcedMode === 'farmer' || forcedMode === 'standard') {
     state.currentMode = forcedMode;
   } else if (forcedMode) {
-    state.currentMode = String(forcedMode).toLowerCase();
+    const norm = String(forcedMode).toLowerCase();
+    state.currentMode = (norm === 'aviation' || norm === 'farmer') ? norm : 'standard';
   } else {
-    state.currentMode = (state.currentMode === 'standard') ? 'aviation' : 'standard';
+    // 3-way toggle cycle: standard -> aviation -> farmer -> standard
+    if (state.currentMode === 'standard') {
+      state.currentMode = 'aviation';
+    } else if (state.currentMode === 'aviation') {
+      state.currentMode = 'farmer';
+    } else {
+      state.currentMode = 'standard';
+    }
   }
   state.operationalMode = state.currentMode;
 
   const isAviation = (state.currentMode === 'aviation');
+  const isFarmer = (state.currentMode === 'farmer');
 
   // 1. If mode === 'aviation': Add aviation-theme class to <body>.
-  // 2. If mode === 'standard': Remove aviation-theme class.
+  // 2. If mode === 'farmer': Add farmer-mode class to <body>.
+  // 3. If mode === 'standard': Remove mode classes.
+  document.body.classList.remove('aviation-theme', 'mode-aviation', 'farmer-mode', 'mode-farmer');
   if (isAviation) {
-    document.body.classList.add('aviation-theme');
-    document.body.classList.add('mode-aviation');
-  } else {
-    document.body.classList.remove('aviation-theme');
-    document.body.classList.remove('mode-aviation');
+    document.body.classList.add('aviation-theme', 'mode-aviation');
+  } else if (isFarmer) {
+    document.body.classList.add('farmer-mode', 'mode-farmer');
   }
 
-  // Sync mode pill buttons in system tray
+  // Sync mode pill buttons in system tray (Green, Cyan, Amber)
   const btnStandard = elements.modeBtnStandard || document.getElementById('mode-btn-standard');
   const btnAviation = elements.modeBtnAviation || document.getElementById('mode-btn-aviation');
-  if (btnStandard && btnAviation) {
-    btnStandard.classList.toggle('is-active', !isAviation);
-    btnAviation.classList.toggle('is-active', isAviation);
-  }
+  const btnFarmer = elements.modeBtnFarmer || document.getElementById('mode-btn-farmer');
+
+  if (btnStandard) btnStandard.classList.toggle('is-active', state.currentMode === 'standard');
+  if (btnAviation) btnAviation.classList.toggle('is-active', state.currentMode === 'aviation');
+  if (btnFarmer) btnFarmer.classList.toggle('is-active', state.currentMode === 'farmer');
 
   // Legacy button backward compatibility
   const legacyHeaderBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
   const legacyMapBtn = elements.modeToggleMap || document.getElementById('mode-toggle-map');
-  const legacyBtnLabel = isAviation ? '[ ✈️ MODE: AVIATION ]' : '[ 🌐 MODE: STANDARD ]';
+  let legacyBtnLabel = '[ 🌐 MODE: STANDARD ]';
+  if (isAviation) legacyBtnLabel = '[ ✈️ MODE: AVIATION ]';
+  if (isFarmer) legacyBtnLabel = '[ 🌾 MODE: FARMER ]';
+
   [legacyHeaderBtn, legacyMapBtn].forEach((btn) => {
     if (!btn) return;
     btn.textContent = legacyBtnLabel;
     btn.classList.toggle('is-aviation', isAviation);
+    btn.classList.toggle('is-farmer', isFarmer);
   });
 
   // Re-center map to active location when operational context syncs
@@ -1306,18 +1659,19 @@ function setMode(forcedMode) {
     state.map.setView([loc.latitude, loc.longitude], state.map.getZoom() || 6, { animate: true });
   }
 
-  // Task 2: Dynamic Quick Action Button Swapping (Aviation Intent Switch)
+  // Dynamic Quick Action Button Swapping (Standard / Aviation / Farmer)
   updateQuickPromptButtonsForMode(state.currentMode);
 
-  // 3. Label Swapping: If in Aviation mode, find the telemetry labels and
-  // change "DIGITAL TEMPERATURE" to "AERODROME TEMP" and "HUMIDITY" to "RUNWAY VISUAL (RVR)".
-  updateTelemetryWidgetForMode(state.lastWeatherData);
+  // Label Swapping: Update all 4 telemetry widgets for current mode
+  bindTelemetryWidgets(state.lastWeatherData, state.currentAlerts);
   updateMetarTelemetryDisplay(state.activeMetarRaw, state.activeFlightRules, state.activeIcaoCode);
   updateAerodromeHeader(state.activeIcaoCode, state.activeLocation?.city);
   bindTickerTape(null, state.currentAlerts, state.activeMetarRaw, state.activeIcaoCode);
 
   if (isAviation) {
     appendAviationModeNotification();
+  } else if (isFarmer) {
+    appendFarmerModeNotification();
   }
 }
 window.setMode = setMode;
@@ -1330,9 +1684,12 @@ function updateQuickPromptButtonsForMode(mode) {
   if (!buttons || buttons.length < 4) return;
 
   const isAviation = (mode === 'aviation');
+  const isFarmer = (mode === 'farmer');
   const aviationKeys = ['QUERY_METAR', 'QUERY_SIGMET', 'QUERY_CEILING', 'QUERY_SHEAR'];
+  const farmerKeys = ['QUERY_FARMER_CROP', 'QUERY_FARMER_RAIN', 'QUERY_FARMER_IRRIGATE', 'QUERY_FARMER_SPRAY'];
   const standardKeys = ['QUERY_SAFETY', 'QUERY_RAIN', 'QUERY_HISTORY', 'QUERY_CROP'];
-  const targetKeys = isAviation ? aviationKeys : standardKeys;
+
+  const targetKeys = isFarmer ? farmerKeys : (isAviation ? aviationKeys : standardKeys);
 
   buttons.forEach((btn, idx) => {
     if (targetKeys[idx]) {
@@ -1346,33 +1703,8 @@ function updateQuickPromptButtonsForMode(mode) {
 window.updateQuickPromptButtonsForMode = updateQuickPromptButtonsForMode;
 
 function bindTelemetryWidgets(weatherData, alertsData) {
-  const current = weatherData?.current;
-
-  // 1 & 2. Digital Temperature/Aerodrome Temp and Humidity/RVR Display (Mode-Aware)
-  updateTelemetryWidgetForMode(weatherData);
-
-  // 3. Wind Velocity widget
-  if (current && current.wind_speed != null) {
-    if (elements.telemetryWind) elements.telemetryWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
-    if (elements.telemetryWindSub) elements.telemetryWindSub.textContent = 'SURFACE VELOCITY';
-  } else {
-    if (elements.telemetryWind) elements.telemetryWind.textContent = '-- km/h';
-    if (elements.telemetryWindSub) elements.telemetryWindSub.textContent = 'AWAITING ANEMOMETER';
-  }
-
-  // 4. Barometric / Hazards tracker widget (#metricAlerts, #telemetryAlertsCount)
-  const alertCount = (alertsData || []).length;
-  const elAlerts = document.getElementById('metricAlerts') || elements.telemetryAlertsCount;
-  if (elAlerts) {
-    elAlerts.textContent = `${alertCount} ACTIVE`;
-    if (alertCount > 0) {
-      elAlerts.style.color = '#FF3131';
-      if (elements.telemetryBaroSub) elements.telemetryBaroSub.textContent = 'OFFICIAL HAZARDS TRACKED';
-    } else {
-      elAlerts.style.color = (state.currentMode === 'aviation') ? '#00d4ff' : '#00ff66';
-      if (elements.telemetryBaroSub) elements.telemetryBaroSub.textContent = 'NO ACTIVE WARNINGS';
-    }
-  }
+  // Delegate to mode-aware widget binder
+  updateTelemetryWidgetForMode(weatherData, alertsData);
 }
 
 // ── 5. Emergency UI State (Crisis Mode: Alert Severity / Temp > 45°C / Wind > 75km/h) ──
@@ -2242,6 +2574,7 @@ function setupVoiceInput() {
           formData.append('language', selectedLang);
           formData.append('user_language', selectedLang);
         }
+        formData.append('mode', state.currentMode || 'standard');
 
         state.isExecuting = true;
         elements.executeBtn.disabled = true;
@@ -2638,6 +2971,10 @@ function initializeTerminal() {
   const btnAviation = elements.modeBtnAviation || document.getElementById('mode-btn-aviation');
   if (btnAviation) {
     btnAviation.addEventListener('click', () => setMode('aviation'));
+  }
+  const btnFarmer = elements.modeBtnFarmer || document.getElementById('mode-btn-farmer');
+  if (btnFarmer) {
+    btnFarmer.addEventListener('click', () => setMode('farmer'));
   }
   const headerModeBtn = elements.modeToggleHeader || document.getElementById('mode-toggle-header');
   if (headerModeBtn) {

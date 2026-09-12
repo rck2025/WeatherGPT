@@ -98,6 +98,7 @@ class OpenMeteoService:
                 "wind_speed_10m",
                 "weather_code",
                 "visibility",
+                "soil_moisture_0_to_7cm",
             ],
 
             # Fields available in HourlyForecast
@@ -145,6 +146,7 @@ class OpenMeteoService:
                 wind_speed=current.get("wind_speed_10m"),
                 weather_code=current.get("weather_code"),
                 visibility=current.get("visibility"),
+                soil_moisture_0_to_7cm=current.get("soil_moisture_0_to_7cm"),
             )
 
             # Minutely 15-minute NWP intervals for high-resolution nowcast

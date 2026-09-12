@@ -6,6 +6,7 @@
 
 :root {
   --accent: #00ff66; /* Standard Green */
+  --accent-primary: #f59e0b; /* Golden Amber Primary */
   --bg-main: #000000;
   --border-dim: rgba(0, 255, 102, 0.2);
 
@@ -23,7 +24,7 @@
   --terminal-border: var(--border-dim);
   --terminal-border-bright: var(--accent);
 
-  --terminal-amber: #FFB000;
+  --terminal-amber: #f59e0b;
   --terminal-orange: #FFAC1C;
   --terminal-red: #FF3131;
   --terminal-red-glow: rgba(255, 49, 49, 0.45);
@@ -54,6 +55,28 @@ body.mode-aviation {
   --text-primary: #e0f7fa !important;
   --text-secondary: #80deea !important;
   --text-muted: #4dd0e1 !important;
+}
+
+body.farmer-mode,
+body.mode-farmer {
+  --accent: #f59e0b; /* Golden Amber */
+  --accent-primary: #f59e0b;
+  --bg-surface: rgba(22, 16, 5, 0.78);
+  --border-dim: rgba(245, 158, 11, 0.25);
+
+  --neon-green: var(--accent) !important;
+  --terminal-green: var(--accent) !important;
+  --terminal-green-bright: #fbbf24 !important;
+  --terminal-green-dim: #b45309 !important;
+  --terminal-green-glow: rgba(245, 158, 11, 0.35) !important;
+  --terminal-border: var(--border-dim) !important;
+  --terminal-border-bright: var(--accent) !important;
+  --terminal-cyan: var(--accent) !important;
+  --terminal-amber: var(--accent) !important;
+
+  --text-primary: #fef3c7 !important;
+  --text-secondary: #fde68a !important;
+  --text-muted: #d97706 !important;
 }
 
 /* FORCE ALL BORDERS, TEXT, AND SHADOWS TO USE var(--accent) */
@@ -939,6 +962,36 @@ body:not(.sat-mode) .leaflet-tile-pane {
   font-weight: 800 !important;
   border-color: var(--terminal-green) !important;
   box-shadow: 0 0 10px rgba(0, 255, 65, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.4) !important;
+  text-shadow: none !important;
+}
+
+.agri-scan-toggle-btn {
+  background: rgba(22, 16, 5, 0.85);
+  border: 1px solid #f59e0b;
+  color: #f59e0b;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease-in-out;
+  text-transform: uppercase;
+}
+
+.agri-scan-toggle-btn:hover {
+  background-color: #f59e0b;
+  color: #000000;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+}
+
+.agri-scan-toggle-btn.is-active {
+  background-color: #f59e0b !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.9), inset 0 0 4px rgba(255, 255, 255, 0.5) !important;
   text-shadow: none !important;
 }
 
@@ -2231,6 +2284,24 @@ body.sat-mode .user-beacon-core,
   border-color: var(--accent);
 }
 
+#mode-btn-standard:hover {
+  background: rgba(0, 255, 102, 0.15) !important;
+  border-color: #00ff66 !important;
+  color: #00ff66 !important;
+}
+
+#mode-btn-aviation:hover {
+  background: rgba(0, 212, 255, 0.15) !important;
+  border-color: #00d4ff !important;
+  color: #00d4ff !important;
+}
+
+#mode-btn-farmer:hover {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
+}
+
 .mode-pill-btn.is-active {
   background: var(--accent) !important;
   color: #000000 !important;
@@ -2239,12 +2310,29 @@ body.sat-mode .user-beacon-core,
   font-weight: 800;
 }
 
+#mode-btn-standard.is-active {
+  background: #00ff66 !important;
+  color: #000000 !important;
+  border-color: #00ff66 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.5) !important;
+}
+
+#mode-btn-aviation.is-active,
 body.aviation-theme .mode-pill-btn.is-active,
 body.mode-aviation .mode-pill-btn.is-active {
-  background: var(--accent) !important;
+  background: #00d4ff !important;
   color: #000000 !important;
-  border-color: var(--accent) !important;
+  border-color: #00d4ff !important;
   box-shadow: 0 0 12px rgba(0, 212, 255, 0.6) !important;
+}
+
+#mode-btn-farmer.is-active,
+body.farmer-mode .mode-pill-btn.is-active,
+body.mode-farmer .mode-pill-btn.is-active {
+  background: #f59e0b !important;
+  color: #000000 !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.65) !important;
 }
 
 /* Free OpenStreetMap Dark Terminal Styling (Zero Watermark / No API Key Required) */
@@ -2255,6 +2343,22 @@ body.mode-aviation .mode-pill-btn.is-active {
 body.aviation-theme .terminal-osm-dark-tiles,
 body.mode-aviation .terminal-osm-dark-tiles {
   filter: invert(100%) hue-rotate(195deg) brightness(90%) contrast(125%) !important;
+}
+
+/* Farmer Mode Agro-Optical Multispectral Visuals (Task 1) */
+body.farmer-mode .terminal-osm-dark-tiles,
+body.mode-farmer .terminal-osm-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(125%) sepia(0.2) !important;
+}
+
+body.farmer-mode .leaflet-tile-pane,
+body.mode-farmer .leaflet-tile-pane {
+  filter: sepia(0.2) contrast(108%) brightness(95%);
+}
+
+body.farmer-mode .leaflet-tile-pane .terminal-osm-dark-tiles,
+body.mode-farmer .leaflet-tile-pane .terminal-osm-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(125%) sepia(0.2) !important;
 }
 
 /* Complete Aviation Theme Enforcement: Borders, Panels, Chat, Radar, Badges */
@@ -2405,6 +2509,200 @@ body.aviation-theme .confidence-gauge-bar {
   color: var(--accent) !important;
 }
 
+/* Complete Farmer Theme Enforcement (Golden Amber): Borders, Panels, Chat, Radar, Badges */
+body.farmer-mode,
+body.mode-farmer {
+  background-color: #050401 !important;
+}
+
+body.farmer-mode .terminal-app,
+body.mode-farmer .terminal-app {
+  background: var(--bg-surface) !important;
+}
+
+body.farmer-mode .terminal-app,
+body.farmer-mode .terminal-header,
+body.farmer-mode .terminal-chat-panel,
+body.farmer-mode .terminal-telemetry-panel,
+body.farmer-mode .radar-wrapper,
+body.farmer-mode .telemetry-card,
+body.farmer-mode .local-env-toolbar,
+body.farmer-mode .terminal-footer,
+body.farmer-mode .terminal-composer,
+body.mode-farmer .terminal-app,
+body.mode-farmer .terminal-header,
+body.mode-farmer .terminal-chat-panel,
+body.mode-farmer .terminal-telemetry-panel,
+body.mode-farmer .radar-wrapper,
+body.mode-farmer .telemetry-card,
+body.mode-farmer .local-env-toolbar,
+body.mode-farmer .terminal-footer,
+body.mode-farmer .terminal-composer {
+  border-color: var(--border-dim) !important;
+}
+
+body.farmer-mode .panel-header,
+body.mode-farmer .panel-header {
+  border-bottom: 1px solid var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .brand-badge,
+body.mode-farmer .brand-badge {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5) !important;
+}
+
+body.farmer-mode #systemIndicator,
+body.mode-farmer #systemIndicator {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 10px var(--accent) !important;
+}
+
+body.farmer-mode .execute-btn,
+body.mode-farmer .execute-btn {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4) !important;
+}
+
+body.farmer-mode .quick-prompt-btn,
+body.mode-farmer .quick-prompt-btn {
+  color: #f59e0b !important;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+  background: rgba(30, 20, 5, 0.6) !important;
+  box-shadow: 0 0 4px rgba(245, 158, 11, 0.25) !important;
+}
+
+body.farmer-mode .quick-prompt-btn:hover,
+body.mode-farmer .quick-prompt-btn:hover {
+  color: #ffffff !important;
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+body.farmer-mode .quick-prompt-btn:active,
+body.mode-farmer .quick-prompt-btn:active {
+  background-color: rgba(245, 158, 11, 0.4) !important;
+  border-color: #f59e0b !important;
+}
+
+body.farmer-mode .prompt-prefix,
+body.farmer-mode .message-prefix,
+body.farmer-mode .command-input,
+body.mode-farmer .prompt-prefix,
+body.mode-farmer .message-prefix,
+body.mode-farmer .command-input {
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .command-input,
+body.mode-farmer .command-input {
+  border-color: var(--border-dim) !important;
+}
+
+body.farmer-mode .telemetry-card,
+body.mode-farmer .telemetry-card {
+  border-color: var(--border-dim) !important;
+  background: rgba(22, 16, 5, 0.65) !important;
+}
+
+body.farmer-mode .telemetry-card-header,
+body.mode-farmer .telemetry-card-header {
+  border-bottom: 1px solid var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .telemetry-card-header span:first-child,
+body.mode-farmer .telemetry-card-header span:first-child {
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .telemetry-card-header span:last-child,
+body.mode-farmer .telemetry-card-header span:last-child {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border: 1px solid var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .telemetry-value-large,
+body.farmer-mode .telemetry-value-medium,
+body.mode-farmer .telemetry-value-large,
+body.mode-farmer .telemetry-value-medium {
+  color: var(--accent) !important;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.35) !important;
+}
+
+body.farmer-mode .humidity-bar-fill,
+body.mode-farmer .humidity-bar-fill {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent) !important;
+}
+
+body.farmer-mode .interval-btn.is-active,
+body.mode-farmer .interval-btn.is-active {
+  background: var(--accent) !important;
+  color: #000000 !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5) !important;
+}
+
+body.farmer-mode .radar-sweep-badge,
+body.mode-farmer .radar-sweep-badge {
+  border-color: var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .radar-sweep,
+body.mode-farmer .radar-sweep {
+  background: conic-gradient(from 0deg, rgba(245, 158, 11, 0.22) 0%, transparent 40%) !important;
+}
+
+body.farmer-mode .radar-sweep::before,
+body.mode-farmer .radar-sweep::before {
+  background: linear-gradient(to top, rgba(245, 158, 11, 0.95), rgba(245, 158, 11, 0.1)) !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.9) !important;
+}
+
+body.farmer-mode .radar-pulse-ring,
+body.mode-farmer .radar-pulse-ring {
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+body.farmer-mode .radar-crosshair-h,
+body.farmer-mode .radar-crosshair-v,
+body.mode-farmer .radar-crosshair-h,
+body.mode-farmer .radar-crosshair-v {
+  background: rgba(245, 158, 11, 0.3) !important;
+}
+
+body.farmer-mode .radar-center-blip,
+body.mode-farmer .radar-center-blip {
+  background: var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent) !important;
+}
+
+body.farmer-mode .wm-source-badge,
+body.mode-farmer .wm-source-badge {
+  border-color: var(--border-dim) !important;
+  color: var(--accent) !important;
+}
+
+body.farmer-mode .intel-toggle-btn,
+body.mode-farmer .intel-toggle-btn {
+  color: var(--accent) !important;
+  border-color: var(--border-dim) !important;
+}
+
+body.farmer-mode .confidence-gauge-bar,
+body.mode-farmer .confidence-gauge-bar {
+  color: var(--accent) !important;
+}
+
 /* Utility Classes for Map Container */
 .h-full { height: 100%; }
 .w-full { width: 100%; }
@@ -2444,6 +2742,34 @@ body.aviation-theme .confidence-gauge-bar {
   color: #000000;
   border-color: var(--terminal-cyan);
   box-shadow: 0 0 12px rgba(0, 212, 255, 0.7);
+}
+
+.floating-agri-btn {
+  background: rgba(22, 16, 5, 0.90);
+  border: 1px solid #f59e0b;
+  color: #f59e0b;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  transition: all 0.2s ease;
+  margin-right: 4px;
+}
+
+.floating-agri-btn:hover {
+  background: #f59e0b;
+  color: #000000;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.8);
+}
+
+.floating-agri-btn.is-active {
+  background: #f59e0b !important;
+  color: #000000 !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.95), inset 0 0 4px rgba(255, 255, 255, 0.4) !important;
 }
 
 /* ── Digital India Bhashini National Language Core Active Badge ── */

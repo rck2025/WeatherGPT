@@ -277,3 +277,20 @@ Content-Type: application/json
     ```
     *   Backend API documentation will be available at `http://127.0.0.1:8000/docs`.
     *   Interactive UI will be served at `http://127.0.0.1:8000/`.
+
+---
+
+## 🌾 Satellite Agri-Intelligence & ICRISAT Roadmap
+
+### 1. ESA WorldCover 10m Cropland-Only Mask
+WeatherGPT integrates the **ESA WorldCover 10m (v100)** dataset via Google Earth Engine (GEE).
+*   **Resolution:** 10-meter global land-cover grid.
+*   **Cropland Isolation (Class 40):** Hides non-agricultural surfaces (urban concrete, open water, forests, barren land) using `.updateMask(dataset.eq(40))`.
+*   **High-Contrast Golden Amber (`#f59e0b`):** Farm parcels glow in high-contrast amber at 0.6 opacity over orbital terrain imagery, visually anchoring where agro-tactical advisories apply.
+*   **API Endpoint:** `GET /api/v1/map/layers/cropland`
+
+### 2. Sovereign Upgrade Path: ICRISAT 10m South Asia Dataset
+*   **Institutional Alignment:** International Crops Research Institute for the Semi-Arid Tropics (ICRISAT).
+*   **Technical Roadmap:** While ESA WorldCover provides 10m cropland extent, ICRISAT's 10m South Asia agricultural mapping provides critical sub-classification between **irrigated (canal/tube-well)** and **rainfed (monsoon-dependent)** parcels.
+*   **Scientific Decision Support:** Integrating ICRISAT 10m data enables WeatherGPT to dynamically tailor IMD GKMS irrigation advisories based on whether a farmer's specific field has canal irrigation infrastructure or relies exclusively on precipitation.
+

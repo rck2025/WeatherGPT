@@ -43,6 +43,7 @@ class CurrentWeatherData(BaseModel):
     wind_speed: float | None = None
     weather_code: int | None = None
     visibility: float | None = None
+    soil_moisture_0_to_7cm: float | None = None
 
 
 class HourlyForecast(BaseModel):

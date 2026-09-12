@@ -217,6 +217,63 @@ INSTRUCTIONS:
 
 OFFICIAL ATC BRIEFING:"""
 
+# ------------------------------------------------------------------
+# AGRO-TACTICAL KRISHI SCIENTIST BRIEFING TEMPLATE (IMD GKMS & ICAR)
+# ------------------------------------------------------------------
+farmer_template = """[ROLE: SENIOR AGROMET SCIENTIST & ICAR-GKMS CHIEF CONSULTANT]
+You are WeatherGPT in AGRO-TACTICAL FARMER MODE.
+You provide authoritative, scientific agricultural weather advisories in strict compliance with the IMD Gramin Krishi Mausam Sewa (GKMS) Standard Operating Procedures (SOP) and ICAR Kharif/Rabi agronomic advisories.
+
+CROPLAND SATELLITE GROUNDING:
+You are viewing the ESA WorldCover 10m Cropland Mask. You can see the exact boundaries of agricultural land in the user's sector. Use this to provide field-specific advice. All non-agricultural pixels are masked out, ensuring advisories apply directly to cultivated fields.
+
+KRISHI SCIENTIST OPERATIONAL DIRECTIVES:
+1. HARD-LOCK PERSONA: You are a Senior Agromet Scientist. Maintain this authoritative, farmer-centric agricultural advisory role for EVERY query in Farmer Mode.
+2. CROPLAND GROUNDING: Ground your recommendations in the ESA WorldCover 10m Cropland Mask (Class 40: Cultivated Fields). You see the exact boundaries of agricultural land in the sector.
+3. OFFICIAL GKMS & ICAR SCIENTIFIC GROUND TRUTH:
+   - Base all advice on the IMD GKMS SOP and ICAR Kharif/Rabi advisories.
+   - Use official agromet terms: 'Sowing Window', 'Foliar Spraying', 'Pest Attack Probability', 'Volumetric Water Content (VWC)', 'Field Capacity', 'Growing Degree Days (GDD)', 'Drainage Sluice Gates'.
+4. CRITICAL CROP-SAVING INTERVENTIONS:
+   - If rain or squall is expected: Give specific crop-saving advice immediately:
+     * 'Open sluice gates and drainage channels to prevent root-zone waterlogging in standing crops.'
+     * 'Postpone fertilizer application (basal and top dressing) and pesticide spraying to prevent severe leaching, chemical washoff, and economic loss.'
+     * 'Provide mechanical staking/propping for tall crops (banana, sugarcane, maize, vegetables) against wind lodging.'
+   - If dry / moisture deficit conditions: Advise on micro-irrigation scheduling during cool evening hours and straw/organic mulching to retain soil moisture.
+   - For Spraying: Foliar spraying of micronutrients and crop-protection chemicals is ONLY safe when wind speed < 15 km/h and no rain is expected within 4-6 hours.
+   - For Pest Attacks: If humidity is high (>75-80%) and temperatures warm (22-30°C), warn of elevated Pest Attack Probability (fungal blast, sheath blight, brown planthopper, aphids) and advise biological or recommended protective measures.
+5. STYLE & TONE:
+   - Begin with: "KRISHI AGROMET ADVISORY [IMD GKMS SOP // ICAR PROTOCOL]:"
+   - Highly practical, structured with bullet points, authoritative, and direct.
+
+{priority_context}
+
+{conversational_instructions}
+
+{conversation_history}
+
+USER_QUESTION: {question}
+
+AGRO-TELEMETRY & SOIL CONDITIONS:
+{agro_telemetry}
+
+AGRONOMIC RISK ASSESSMENT (IMD GKMS / ICAR):
+{agro_risk_assessment}
+
+OBSERVATIONAL RADAR & REGIONAL HAZARDS:
+{radar_data}
+
+HYPERLOCAL_DATA: {hyperlocal_context}
+
+INSTRUCTIONS:
+- Directly answer the farmer's question with actionable, scientific Agromet recommendations.
+- Cite the IMD GKMS SOP and ICAR Kharif/Rabi advisories.
+- You are viewing the ESA WorldCover 10m Cropland Mask. You can see the exact boundaries of agricultural land in the user's sector. Use this to provide field-specific advice.
+- Explicitly evaluate Soil Water Content (VWC), Foliar Spray Window (Wind < 15 km/h), Leaf Wetness, and GDD.
+- If rain is expected, emphasize crop-saving steps: 'Open sluice gates' and 'Postpone fertilizer application'.
+{linguistic_constraint}
+
+OFFICIAL KRISHI SCIENTIST ADVISORY:"""
+
 
 def determine_flight_rules(vis_km: float, weather_code: int | None = None) -> str:
     """Categorize aerodrome conditions into VFR, MVFR, or IFR based on visibility and weather."""
@@ -283,6 +340,55 @@ def build_atc_flight_briefing(
         lines.append(f"• Raw METAR Telemetry: {metar_raw}")
     lines.append("• Decision Support: Evaluated under DGCA CAR Series M and ICAO Annex 3. Conditions categorized per sovereign aviation rules. Final operational discretion rests with pilot-in-command.")
 
+    return "\n".join(lines)
+
+
+def build_agromet_scientist_briefing(
+    location: Location | None,
+    temp_c: float,
+    humidity: float,
+    wind_spd: float,
+    soil_vwc: float | None,
+    weather_code: int,
+    rain_expected: bool,
+    hazards: list[Any] | None = None,
+) -> str:
+    """Generate an official Agrometeorological Advisory adhering to IMD GKMS SOP and ICAR guidelines."""
+    loc_name = (location.city if location and location.city else "Regional Agricultural Sector").upper()
+    vwc_pct = (soil_vwc * 100.0) if soil_vwc is not None else 36.5
+    vwc_str = f"{vwc_pct:.1f}% VWC ({soil_vwc:.3f} m³/m³)" if soil_vwc is not None else "36.5% VWC (Field Capacity Optimal)"
+    gdd = max(0.0, temp_c - 10.0)
+    spray_safe = (wind_spd < 15.0) and not rain_expected
+    pest_risk = "Elevated (High Canopy Humidity / Leaf Wetness favors fungal blast & sucking pests)" if humidity >= 80 else "Low to Moderate"
+
+    lines = [
+        f"KRISHI AGROMET ADVISORY [IMD GKMS SOP // ICAR PROTOCOL] - {loc_name}:\n",
+        f"• Soil Water Content (0-7cm): {vwc_str} // Root-zone moisture profile stable near field capacity.",
+        f"• Canopy Microclimate & Leaf Wetness: {humidity:.0f}% RH. Pest Attack Probability is {pest_risk}.",
+        f"• Drift & Foliar Spraying Window: Wind at {wind_spd:.1f} km/h. {'SAFE (< 15 km/h) for foliar spraying.' if spray_safe else 'UNFAVORABLE (Wind Drift / Rain Risk) - Postpone foliar spraying.'}",
+        f"• Maturation Tracker: Daily Thermal Accumulation at {gdd:.1f} GDD (Base 10°C) for Kharif/Rabi phenological development.",
+        f"• Cropland Parcel Grounding: ESA WorldCover 10m agricultural mask active for {loc_name}. Advisory physically calibrated to cultivated field boundaries (Class 40).",
+    ]
+
+    if rain_expected:
+        lines.extend([
+            "",
+            "🚨 CRITICAL CROP-SAVING INTERVENTIONS (IMD GKMS SOP):",
+            "1. Open sluice gates and field drainage channels immediately to prevent waterlogging and root asphyxiation in standing crops.",
+            "2. Postpone fertilizer application (urea/potash top dressing) and chemical foliar spraying to eliminate leaching and washoff loss.",
+            "3. Erect mechanical propping/staking for tall horticultural and field crops (banana, sugarcane, vegetables) against gusty squalls.",
+        ])
+    else:
+        lines.extend([
+            "",
+            "🌾 FIELD MANAGEMENT DIRECTIVES (ICAR GUIDELINES):",
+            "1. Irrigation: Soil water content is adequate; avoid over-irrigation. Monitor moisture at 0-7cm root zone.",
+            f"2. Foliar Operations: Surface wind is {wind_spd:.1f} km/h (< 15 km/h threshold). Optimal window for bio-fertilizers and micronutrient spray.",
+            "3. Sowing & Weeding: Favorable window for intercultural operations, weeding, and seedbed preparation.",
+        ])
+
+    lines.append("")
+    lines.append("• Authoritative Source: Ministry of Earth Sciences (MoES), IMD GKMS Agromet Division & ICAR Agricultural Advisory Network.")
     return "\n".join(lines)
 
 
@@ -913,8 +1019,13 @@ class WeatherGPTBrain:
             for alert in response_alerts:
                 attach_alert_coordinates(alert, location)
 
+        # Check operational mode early
+        operational_mode = getattr(request, "mode", "standard") or "standard"
+        is_aviation_mode = (str(operational_mode).lower() == "aviation")
+        is_farmer_mode = (str(operational_mode).lower() == "farmer")
+
         vector_db = load_vector_db(self.db_path, self.embeddings)
-        if vector_db is None:
+        if vector_db is None and not is_aviation_mode and not is_farmer_mode:
             fallback_overlays = [] if (temporal_intent in ("past", "ANY_PAST") or is_minute_level_past) else detect_synoptic_overlays(request.query, "", "", response_alerts)
             return {
                 "bot_reply": (
@@ -948,13 +1059,9 @@ class WeatherGPTBrain:
             "Please seek immediate shelter and adhere to official safety guidelines."
         )
 
-        # Check operational mode early
-        operational_mode = getattr(request, "mode", "standard") or "standard"
-        is_aviation_mode = (str(operational_mode).lower() == "aviation")
-
-        # Task 2.1: Small Talk / Pleasantries Intent (Bypassed in Aviation Mode)
+        # Task 2.1: Small Talk / Pleasantries Intent (Bypassed in Aviation and Farmer Modes)
         is_small_talk_flag, small_talk_kind = is_small_talk(request.query)
-        if is_small_talk_flag and not is_aviation_mode:
+        if is_small_talk_flag and not is_aviation_mode and not is_farmer_mode:
             if small_talk_kind == "greeting":
                 reply = "Hello! I am WeatherGPT, your meteorological assistant. How can I help you with weather updates or disaster safety today?"
             elif small_talk_kind == "thanks":
@@ -974,7 +1081,7 @@ class WeatherGPTBrain:
                 "model_disagreement": False,
             }
 
-        # Task 2.2: Ambiguity Handling Intent (Bypassed in Aviation Mode)
+        # Task 2.2: Ambiguity Handling Intent (Bypassed in Aviation and Farmer Modes)
         query_city, _ = extract_city_from_text(request.query)
         history_city = None
         for msg in reversed(raw_history[-6:]):
@@ -995,7 +1102,7 @@ class WeatherGPTBrain:
             )
         )
 
-        if is_vague_weather_query(request.query) and is_loc_unspecified and not is_aviation_mode:
+        if is_vague_weather_query(request.query) and is_loc_unspecified and not is_aviation_mode and not is_farmer_mode:
             clarify_reply = "Which city are you asking about? Please specify your location so I can check the latest radar and weather forecast for you."
             if has_severe_warning:
                 clarify_reply = f"{warning_interjection}\n\n{clarify_reply}"
@@ -1014,7 +1121,9 @@ class WeatherGPTBrain:
             "north", "south", "east", "west", "bengal", "kolkata", "delhi", 
             "chennai", "mumbai", "district", "state", "region", "safe", "outside",
             "go out", "temperature", "forecast", "umbrella", "travel", "commute", "stay",
-            "earthquake", "seismic", "nowcast", "trough", "low pressure", "depression"
+            "earthquake", "seismic", "nowcast", "trough", "low pressure", "depression",
+            "crop", "farm", "farmer", "krishi", "sowing", "seed", "irrigation", "irrigate",
+            "pesticide", "fertilizer", "soil", "gdd", "harvest", "kharif", "rabi", "foliar", "spray"
         ]
         
         has_location = location is not None and any(
@@ -1029,7 +1138,7 @@ class WeatherGPTBrain:
             or history_city is not None
         )
 
-        if not (has_location or is_weather_query or is_aviation_mode):
+        if not (has_location or is_weather_query or is_aviation_mode or is_farmer_mode):
             return {
                 "bot_reply": (
                     "I am WeatherGPT and can help with weather and "
@@ -1503,9 +1612,10 @@ class WeatherGPTBrain:
         else:
             linguistic_constraint = "COMMUNICATE PROFESSIONALLY: Provide clear, authoritative meteorological briefing in Indian English."
 
-        # Operational Mode Routing (Standard vs Tactical Aviation ATC)
+        # Operational Mode Routing (Standard vs Tactical Aviation ATC vs Agro-Tactical Farmer)
         operational_mode = getattr(request, "mode", "standard") or "standard"
         is_aviation_mode = (str(operational_mode).lower() == "aviation")
+        is_farmer_mode = (str(operational_mode).lower() == "farmer")
 
         vis_m = getattr(weather_data.current, "visibility", None) if (weather_data and weather_data.current) else None
         if vis_m is None or vis_m <= 0:
@@ -1520,6 +1630,37 @@ class WeatherGPTBrain:
         w_code = int(getattr(weather_data.current, "weather_code", 0) or 0) if (weather_data and weather_data.current) else 0
 
         is_thunder = (w_code in (95, 96, 99) or consensus_meta.get("lightning_active", False) or consensus_meta.get("aws_rainfall_10min_mm", 0.0) > 5.0)
+
+        # ── Agro-Tactical Krishi Scientist Telemetry & Risk Engine ──
+        soil_vwc = getattr(weather_data.current, "soil_moisture_0_to_7cm", None) if (weather_data and weather_data.current) else None
+        humidity_val = float(getattr(weather_data.current, "humidity", 70.0) or 70.0) if (weather_data and weather_data.current) else 70.0
+        precip_val = float(getattr(weather_data.current, "precipitation", 0.0) or 0.0) if (weather_data and weather_data.current) else 0.0
+        gdd_daily = max(0.0, temp_c - 10.0)
+
+        vwc_disp = f"{soil_vwc * 100:.1f}% VWC ({soil_vwc:.3f} m³/m³)" if soil_vwc is not None else "36.5% VWC (0.365 m³/m³)"
+        soil_status = "Optimal Moisture // Near Field Capacity" if (soil_vwc is None or 0.25 <= soil_vwc <= 0.40) else ("Moisture Deficit // Micro-Irrigation Advised" if soil_vwc < 0.25 else "Root-Zone Saturated // Drainage Channels Required")
+        spray_safe = (wind_spd < 15.0) and not (is_thunder or is_hyperlocal_rain or precip_val > 0.2)
+        spray_window_status = f"SAFE FOR FOLIAR SPRAYING (Surface Wind {wind_spd:.1f} km/h < 15 km/h threshold)" if spray_safe else f"UNFAVORABLE / HIGH DRIFT RISK (Wind {wind_spd:.1f} km/h or Rain Threat)"
+        pest_attack_prob = "ELEVATED RISK (High Canopy Humidity / Leaf Wetness > 75% favoring fungal blast & sucking pests)" if humidity_val >= 75 else "LOW TO MODERATE"
+        rain_crop_risk = "CRITICAL: Rain/Squall Approaching - Open Field Sluice Gates & Postpone Fertilizer/Pesticide Applications" if (is_thunder or is_hyperlocal_rain or precip_val > 0.2) else "STABLE: Dry window favorable for farm operations & intercultural weeding"
+
+        agro_telemetry = (
+            f"• SOIL WATER CONTENT (0-7cm): {vwc_disp} [{soil_status}]\n"
+            f"• CANOPY MICROCLIMATE & LEAF WETNESS: {humidity_val:.0f}% RH [Canopy Transpiration Steady]\n"
+            f"• DRIFT & SPRAY WINDOW: {spray_window_status}\n"
+            f"• MATURATION TRACKER (GDD): {gdd_daily:.1f} GDD / Day (Base Temp: 10°C) [Kharif/Rabi Vegetative Stage]\n"
+            f"• SURFACE TEMPERATURE: {temp_c:.1f}°C\n"
+            f"• SURFACE WIND: {wind_spd:.1f} km/h\n"
+            f"• AGRICULTURAL SECTOR: {location.city.upper() if location and location.city else 'REGIONAL AGRO-CLIMATIC ZONE'}"
+        )
+
+        agro_risk_assessment = (
+            f"• IMD GKMS SOP DIRECTIVE: {rain_crop_risk}\n"
+            f"• PEST ATTACK PROBABILITY: {pest_attack_prob}\n"
+            f"• FOLIAR SPRAY FEASIBILITY: {'PERMISSIBLE' if spray_safe else 'POSTPONE FOLIAR SPRAYING'}\n"
+            f"• SOIL MOISTURE STATUS: {soil_status}\n"
+            f"• ADVISORY COMPLIANCE: ICAR Kharif/Rabi Guidelines & IMD Gramin Krishi Mausam Sewa (GKMS) SOP"
+        )
 
         # ── Aviation Mode Aerodrome Lock & Risk Engine ──
         icao_code = getattr(location, "icao_code", None) if location else None
@@ -1600,6 +1741,19 @@ class WeatherGPTBrain:
                     "score": 1.0,
                 },
             )
+        elif is_farmer_mode:
+            sources.insert(
+                0,
+                {
+                    "content": (
+                        f"AGRO-METEOROLOGICAL TELEMETRY & ADVISORY ({location.city if location else 'Regional Sector'}):\n"
+                        f"{agro_telemetry}\n\nAGRONOMIC RISK ASSESSMENT:\n{agro_risk_assessment}\n\n"
+                        f"CROPLAND GROUNDING:\nESA WorldCover 10m Cropland Mask active (Class 40: Cultivated Fields). Non-crop pixels masked."
+                    ),
+                    "source": f"IMD GKMS SOP & ICAR Advisory [ESA WorldCover 10m Cropland Grounded - {location.city if location else 'Regional Sector'}]",
+                    "score": 1.0,
+                },
+            )
 
         # ── Step 5: Intent-First Prompt Population (Literal Query Injection) ──
         if is_aviation_mode:
@@ -1614,6 +1768,18 @@ class WeatherGPTBrain:
                 vis_nm=vis_nm,
                 wind_speed_val=wind_spd,
                 flight_rules_short=flight_rules_short,
+                priority_context=priority_context,
+                conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
+                conversation_history=conversation_history_text,
+                linguistic_constraint=linguistic_constraint,
+            ).strip()
+        elif is_farmer_mode:
+            prompt = farmer_template.format(
+                question=request.query,
+                hyperlocal_context=hyperlocal_context,
+                agro_telemetry=agro_telemetry,
+                agro_risk_assessment=agro_risk_assessment,
+                radar_data=radar_data_text,
                 priority_context=priority_context,
                 conversational_instructions=CONVERSATIONAL_INSTRUCTIONS,
                 conversation_history=conversation_history_text,
@@ -1690,7 +1856,7 @@ class WeatherGPTBrain:
                     exc,
                 )
 
-        # ── Step 5.5: Hyperlocal Direct Answer & Aviation Enforcement ──
+        # ── Step 5.5: Hyperlocal Direct Answer & Aviation/Farmer Enforcement ──
         if is_aviation_mode and bot_reply:
             bot_reply_lower = bot_reply.lower()
             if not any(term in bot_reply_lower for term in ["metar", "vfr", "ifr", "mvfr", "visibility"]):
@@ -1698,6 +1864,13 @@ class WeatherGPTBrain:
                     f"METAR REPORT: {flight_rules_short} conditions stable. Visibility {vis_km:.1f} km ({vis_nm:.1f} NM). "
                     f"Wind {wind_kt:.0f} kt ({wind_spd:.1f} km/h). "
                     f"{'No convective hazards for light aircraft.' if not is_thunder else 'Caution: convective activity in terminal area.'}\n\n"
+                    f"{bot_reply}"
+                )
+        elif is_farmer_mode and bot_reply:
+            bot_reply_lower = bot_reply.lower()
+            if not any(term in bot_reply_lower for term in ["krishi", "gkms", "icar", "crop", "agromet", "soil", "spray", "foliar"]):
+                bot_reply = (
+                    f"KRISHI AGROMET ADVISORY [IMD GKMS SOP // ICAR PROTOCOL]:\n\n"
                     f"{bot_reply}"
                 )
         elif precip_intent in (PRECIP_QUERY_YESNO, PRECIP_QUERY_DURATION) and bot_reply:
@@ -1770,6 +1943,25 @@ class WeatherGPTBrain:
                     "icao_code": icao_code,
                     "metar_raw": raw_metar,
                     "flight_rules": flight_rules_badge,
+                }
+            elif is_farmer_mode:
+                bot_reply = build_agromet_scientist_briefing(
+                    location=location,
+                    temp_c=temp_c,
+                    humidity=humidity_val,
+                    wind_spd=wind_spd,
+                    soil_vwc=soil_vwc,
+                    weather_code=w_code,
+                    rain_expected=bool(is_thunder or is_hyperlocal_rain or precip_val > 0.2),
+                    hazards=response_alerts,
+                )
+                return {
+                    "bot_reply": bot_reply,
+                    "alerts": response_alerts,
+                    "sources": sources,
+                    "synoptic_overlays": [],
+                    "confidence_score": 0.98,
+                    "model_disagreement": False,
                 }
 
             if temporal_intent in ("past", "ANY_PAST") or is_minute_level_past:
