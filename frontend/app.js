@@ -140,8 +140,9 @@ function initMap() {
   const mapElement = document.getElementById('radarMap') || document.getElementById('map');
   if (!mapElement || typeof L === 'undefined') return;
 
-  // Task 3: Dynamic Ocean Glow (Deep Midnight Blue)
-  mapElement.style.backgroundColor = '#000814';
+  // Background adapts to theme: light mode gets sky blue, dark/default stays deep midnight blue
+  const isLightTheme = document.body.classList.contains('theme-light');
+  mapElement.style.backgroundColor = isLightTheme ? '#e8f4f8' : '#000814';
 
   // Initialize map centered on South Asia / India: Bounds [5, 60] to [38, 100]
   state.map = L.map(mapElement, {
@@ -740,9 +741,9 @@ function createLowPressurePopupContent(overlay, severityLevel = 'severe') {
     <div class="plain-safety-popup">
       <div class="popup-header-row">
         <span class="popup-badge ${isModerate ? 'badge-moderate' : 'badge-severe'}">
-          ${isModerate ? 'WATCH // MODERATE' : 'WARNING // SEVERE'}
+          ${isModerate ? 'Advisory' : 'Warning'}
         </span>
-        <span style="font-size:10px; color:#f0b3b2; font-weight:700;">IMD BULLETIN</span>
+        <span class="popup-source-tag">IMD Bulletin</span>
       </div>
       <div class="popup-title">${escapeHtml(overlay.name || heading)}</div>
       <div class="popup-action-guide ${isModerate ? 'guide-moderate' : ''}">
@@ -752,8 +753,8 @@ function createLowPressurePopupContent(overlay, severityLevel = 'severe') {
         ${escapeHtml(safetyTips)}
       </div>
       <div class="popup-footer-source">
-        <span>STATUS: ACTIVE HAZARD</span>
-        <span style="color:#00FF41;">SAFETY ADVISORY</span>
+        <span>Active Synoptic System</span>
+        <span class="popup-footer-tag">Official Alert</span>
       </div>
     </div>
   `;
@@ -800,9 +801,9 @@ function createRainfallPopupContent(alert, severityLevel = 'severe') {
     <div class="plain-safety-popup">
       <div class="popup-header-row">
         <span class="popup-badge ${isModerate ? 'badge-moderate' : 'badge-severe'}">
-          ${isModerate ? 'NOWCAST // MODERATE' : 'NOWCAST // SEVERE'}
+          ${isModerate ? 'Watch' : 'Warning'}
         </span>
-        <span style="font-size:10px; color:#f0b3b2; font-weight:700;">SOURCE: ${escapeHtml(alert.source || 'IMD')}</span>
+        <span class="popup-source-tag">${escapeHtml(alert.source || 'IMD')} Nowcast</span>
       </div>
       <div class="popup-title">${escapeHtml(alert.title || heading)}</div>
       <div class="popup-action-guide ${isModerate ? 'guide-moderate' : ''}">
@@ -812,8 +813,8 @@ function createRainfallPopupContent(alert, severityLevel = 'severe') {
         ${escapeHtml(safetyTips)}
       </div>
       <div class="popup-footer-source">
-        <span>TIME: RECENT NOWCAST</span>
-        <span style="color:#00FF41;">PUBLIC SAFETY MODE</span>
+        <span>Active Radar Detection</span>
+        <span class="popup-footer-tag">Public Safety</span>
       </div>
     </div>
   `;
@@ -889,18 +890,14 @@ function updateGeospatialLayer(locationData, alertsList, synopticOverlays) {
       : `${centerLat.toFixed(2)}°, ${centerLon.toFixed(2)}°`;
 
     state.locationMarker.bindPopup(`
-      <div class="world-monitor-popup" style="font-family:'JetBrains Mono',monospace; min-width:220px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid rgba(0,210,255,0.3); padding-bottom:4px;">
-          <span style="color:#00D2FF; font-weight:800; font-size:11px;">[USER BEACON]</span>
-          <span style="font-weight:800; font-size:9px; background:#001a2c; border:1px solid #00D2FF; color:#00D2FF; padding:1px 5px; border-radius:2px;">
-            RADAR GPS // FIXED
-          </span>
+      <div class="tactical-map-popup">
+        <div class="tactical-popup-header">
+          <span class="tactical-popup-tag">Active Station</span>
+          <span class="tactical-popup-pill">GPS Locked</span>
         </div>
-        <div style="color:#ffffff; font-weight:700; font-size:12px; margin-bottom:4px;">
-          ${escapeHtml(locName)}
-        </div>
-        <div style="font-size:10px; color:#7fa886; border-top:1px dashed rgba(255,255,255,0.12); padding-top:4px;">
-          COORDINATES: ${centerLat.toFixed(4)}°N, ${centerLon.toFixed(4)}°E
+        <div class="tactical-popup-title">${escapeHtml(locName)}</div>
+        <div class="tactical-popup-meta">
+          <span>Coordinates: ${centerLat.toFixed(4)}°N, ${centerLon.toFixed(4)}°E</span>
         </div>
       </div>
     `);
@@ -1092,15 +1089,15 @@ function renderHazardMarkers(alertsList, centerLat, centerLon, placedMarkers = [
         <div class="plain-safety-popup">
           <div class="popup-header-row">
             <span class="popup-badge ${alert.magnitude >= 5.0 ? 'badge-severe' : 'badge-moderate'}">
-              ${isHistorical ? 'HISTORICAL RECORD' : 'SEISMIC MONITOR'}
+              ${isHistorical ? 'Historical' : 'Seismic Alert'}
             </span>
-            <span style="font-size:10px; color:#f0b3b2; font-weight:700;">USGS TELEMETRY</span>
+            <span class="popup-source-tag">USGS Telemetry</span>
           </div>
           <div class="popup-title">${escapeHtml(alert.title || 'Seismic Activity')} ${magStr}</div>
           <div class="popup-detail-text">${escapeHtml(alert.description || 'Earthquake activity detected.')}</div>
           <div class="popup-footer-source">
-            <span>SOURCE: USGS</span>
-            <span style="color:#00FF41;">SEISMIC FEED</span>
+            <span>Seismic Telemetry</span>
+            <span class="popup-footer-tag">Live Feed</span>
           </div>
         </div>
       `;
@@ -1178,8 +1175,8 @@ function bindTickerTape(botReply, alertsData, metarRaw, icaoCode) {
 
   elements.tickerTrack.classList.remove('has-aviation-warning');
 
-  const hasLightning = alerts.some(a => 
-    a.lightning_active === true || 
+  const hasLightning = alerts.some(a =>
+    a.lightning_active === true ||
     (a.title && a.title.toLowerCase().includes('lightning')) ||
     (a.description && a.description.toLowerCase().includes('lightning'))
   ) || (botReply && botReply.toLowerCase().includes('lightning strikes detected'));
@@ -1715,7 +1712,7 @@ function updateEmergencyUIState(alertsData, weatherData) {
       } else if (isWindExtreme) {
         elements.crisisBanner.innerHTML = '<span>⚠️ GALE/SQUALL EMERGENCY: WIND VELOCITY EXCEEDS 75 KM/H</span><span style="font-size: 10px; opacity: 0.85;">TRIGGER CYCLONE / HIGH-WIND EVACUATION SOPS</span>';
       } else {
-        elements.crisisBanner.innerHTML = '<span>⚠️ CRITICAL METEOROLOGICAL ALERT DETECTED — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span><span style="font-size: 10px; opacity: 0.85;">REVIEW TACTICAL RADAR HAZARD OVERLAY IMMEDIATELY</span>';
+        elements.crisisBanner.innerHTML = '<span>⚠️ CRITICAL METEOROLOGICAL ALERT DETECTED — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>';
       }
     }
   } else {
@@ -2497,6 +2494,59 @@ function setupVoiceInput() {
 
       mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
+      let audioCtx = null;
+      let silenceCheckInterval = null;
+      let lastSpeechTime = Date.now();
+      let speechDetected = false;
+      let stoppedDueToSilence = false;
+
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+          const sourceNode = audioCtx.createMediaStreamSource(stream);
+          const analyserNode = audioCtx.createAnalyser();
+          analyserNode.fftSize = 256;
+          sourceNode.connect(analyserNode);
+          const pcmData = new Uint8Array(analyserNode.frequencyBinCount);
+
+          silenceCheckInterval = setInterval(() => {
+            if (!mediaRecorder || mediaRecorder.state !== 'recording') {
+              if (silenceCheckInterval) clearInterval(silenceCheckInterval);
+              return;
+            }
+            analyserNode.getByteFrequencyData(pcmData);
+            let energy = 0;
+            for (let i = 0; i < pcmData.length; i++) {
+              energy += pcmData[i];
+            }
+            const avg = energy / pcmData.length;
+            // Ambient noise threshold
+            if (avg > 12) {
+              speechDetected = true;
+              lastSpeechTime = Date.now();
+            } else if (Date.now() - lastSpeechTime >= 12000) {
+              // 12 seconds of silence detected -> auto stop!
+              stoppedDueToSilence = true;
+              if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+              }
+              if (silenceCheckInterval) clearInterval(silenceCheckInterval);
+            }
+          }, 150);
+        }
+      } catch (audioErr) {
+        console.warn('AudioContext monitor unavailable, using fallback timer', audioErr);
+      }
+
+      // Hard fallback safety timer (in case AudioContext is blocked or silent throughout)
+      const hardSilenceTimer = setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          stoppedDueToSilence = true;
+          mediaRecorder.stop();
+        }
+      }, 12000);
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) audioChunks.push(e.data);
       };
@@ -2519,15 +2569,31 @@ function setupVoiceInput() {
       };
 
       mediaRecorder.onstop = async () => {
+        clearTimeout(hardSilenceTimer);
+        if (silenceCheckInterval) clearInterval(silenceCheckInterval);
+        if (audioCtx) {
+          try { audioCtx.close(); } catch(e) {}
+        }
+
         elements.voiceBtn.classList.remove('is-recording');
         elements.voiceBtn.setAttribute('title', 'Voice Input (Tap to record)');
         stream.getTracks().forEach((track) => track.stop());
 
-        if (audioChunks.length === 0) {
+        if (audioChunks.length === 0 || (stoppedDueToSilence && !speechDetected)) {
           if (voiceIndicatorEl) {
             voiceIndicatorEl.remove();
             voiceIndicatorEl = null;
           }
+          const errMsg = document.createElement('div');
+          errMsg.className = 'message-entry bot-message';
+          errMsg.innerHTML = `
+            <span class="message-prefix" style="color:var(--terminal-red);">Error</span>
+            <div class="message-content" style="color:var(--terminal-red);">
+              No clear speech detected.
+            </div>
+          `;
+          elements.chatStream.appendChild(errMsg);
+          errMsg.scrollIntoView({ behavior: 'smooth', block: 'end' });
           return;
         }
 
@@ -3025,3 +3091,19 @@ function initializeTerminal() {
 // ── Bootstrap Terminal ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', initializeTerminal);
 window.addEventListener('load', initializeTerminal);
+
+// ── Reactive Theme Observer: update map background when theme toggles ────────
+(function () {
+  var observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (m) {
+      if (m.attributeName === 'class') {
+        var mapEl = document.getElementById('radarMap') || document.getElementById('map');
+        if (mapEl) {
+          var isLight = document.body.classList.contains('theme-light');
+          mapEl.style.backgroundColor = isLight ? '#e8f4f8' : '#000814';
+        }
+      }
+    });
+  });
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+})();

@@ -2888,6 +2888,21 @@ body.mode-farmer .leaflet-tile-pane .terminal-osm-dark-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(125%) sepia(0.2) !important;
 }
 
+/* ── Light Mode: Remove dark map tile filter so map shows natural OSM colors ── */
+body.theme-light .terminal-osm-dark-tiles,
+body.theme-light .leaflet-tile-pane .terminal-osm-dark-tiles,
+body.theme-light.aviation-theme .terminal-osm-dark-tiles,
+body.theme-light.mode-aviation .terminal-osm-dark-tiles,
+body.theme-light.farmer-mode .terminal-osm-dark-tiles,
+body.theme-light.mode-farmer .terminal-osm-dark-tiles {
+  filter: brightness(100%) contrast(100%) !important;
+}
+
+body.theme-light .leaflet-tile-pane,
+body.theme-light .leaflet-container {
+  background-color: #e8f4f8 !important;
+}
+
 /* Complete Aviation Theme Enforcement: Borders, Panels, Chat, Radar, Badges */
 body.aviation-theme .terminal-app,
 body.aviation-theme .terminal-header,

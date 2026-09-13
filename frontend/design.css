@@ -147,6 +147,32 @@ body.mode-farmer {
   --terminal-amber: #f59e0b !important;
 }
 
+/* High-contrast mode accents for Light Theme */
+body.theme-light.aviation-theme,
+body.theme-light.mode-aviation,
+html[data-theme="light"] body.aviation-theme,
+html[data-theme="light"] body.mode-aviation {
+  --accent: #0284c7 !important;
+  --metric-val: #0284c7 !important;
+  --terminal-green: #0284c7 !important;
+  --terminal-green-bright: #0369a1 !important;
+  --terminal-border-bright: #0284c7 !important;
+  --terminal-cyan: #0284c7 !important;
+}
+
+body.theme-light.farmer-mode,
+body.theme-light.mode-farmer,
+html[data-theme="light"] body.farmer-mode,
+html[data-theme="light"] body.mode-farmer {
+  --accent: #b45309 !important;
+  --metric-val: #b45309 !important;
+  --terminal-green: #b45309 !important;
+  --terminal-green-bright: #92400e !important;
+  --terminal-border-bright: #b45309 !important;
+  --terminal-cyan: #b45309 !important;
+  --terminal-amber: #b45309 !important;
+}
+
 /* ── Base ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -514,8 +540,62 @@ body.crisis-mode {
   font-family: var(--font-ui) !important;
 }
 
-.bot-message .message-content p { margin: 0 0 10px !important; }
-.bot-message .message-content p:last-child { margin-bottom: 0 !important; }
+.bot-message .message-content strong,
+.bot-message .message-content b {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+}
+
+.bot-message .message-content h1,
+.bot-message .message-content h2,
+.bot-message .message-content h3,
+.bot-message .message-content h4,
+.bot-message .message-content h5,
+.bot-message .message-content h6 {
+  color: var(--accent) !important;
+  font-weight: 700 !important;
+  border-bottom: 1px dashed var(--border) !important;
+  padding-bottom: 3px !important;
+  margin: 14px 0 8px 0 !important;
+}
+
+.bot-message .message-content p {
+  color: var(--text) !important;
+  margin: 0 0 10px !important;
+}
+
+.bot-message .message-content p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.bot-message .message-content ul,
+.bot-message .message-content ol {
+  color: var(--text) !important;
+  padding-left: 20px !important;
+  margin: 0 0 10px 0 !important;
+}
+
+.bot-message .message-content li {
+  color: var(--text) !important;
+  margin-bottom: 4px !important;
+}
+
+.bot-message .message-content code {
+  color: var(--accent) !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px !important;
+  padding: 1px 5px !important;
+  font-family: var(--font-mono) !important;
+}
+
+.bot-message .message-content pre {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  padding: 10px !important;
+  overflow-x: auto !important;
+}
 
 body.mode-aviation .bot-message .message-prefix,
 body.aviation-theme .bot-message .message-prefix { color: #22d3ee !important; }
@@ -916,10 +996,10 @@ body.farmer-mode .quick-prompt-btn:hover {
 }
 
 .telemetry-body {
-  padding: 16px !important;
+  padding: 12px !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
+  gap: 10px !important;
   overflow-y: auto !important;
   flex: 1 1 0% !important;
   height: 100% !important;
@@ -955,10 +1035,19 @@ body.farmer-mode .quick-prompt-btn:hover {
   border-radius: var(--radius) !important;
 }
 
+body.theme-light #radarMap,
+body.theme-light #radarMap.leaflet-container {
+  background: #e8f4f8 !important;
+}
+
 .leaflet-container {
   background: var(--surface2) !important;
   font-family: var(--font-mono) !important;
   border-radius: var(--radius);
+}
+
+body.theme-light .leaflet-container {
+  background: #e8f4f8 !important;
 }
 
 .radar-sweep-badge {
@@ -1072,7 +1161,7 @@ body.farmer-mode .quick-prompt-btn:hover {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  padding: 16px !important;
+  padding: 12px 14px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 4px !important;
@@ -1116,13 +1205,13 @@ body.farmer-mode .quick-prompt-btn:hover {
   background: transparent !important;
 }
 
-/* Standard mode: no badges (matches zip MetricCard without badge) */
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) .metric-badge,
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) .telemetry-card-header .metric-badge,
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) #telemetryCard1Badge,
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) #telemetryCard2Badge,
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) #telemetryCard3Badge,
-body:not(.mode-aviation):not(.mode-farmer):not(.aviation-theme):not(.farmer-mode) #telemetryCard4Badge {
+/* All modes: hide top-right tech badge pills (THERMAL / MOISTURE / etc.) — redundant with label */
+.metric-badge,
+.telemetry-card-header .metric-badge,
+#telemetryCard1Badge,
+#telemetryCard2Badge,
+#telemetryCard3Badge,
+#telemetryCard4Badge {
   display: none !important;
 }
 
