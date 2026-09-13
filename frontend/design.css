@@ -186,6 +186,10 @@ html, body {
 }
 
 /* ── App root / layout (matches .app-root + .main-grid) ────── */
+html {
+  scroll-behavior: smooth !important;
+}
+
 .terminal-app {
   min-height: 100dvh !important;
   display: flex !important;
@@ -196,24 +200,53 @@ html, body {
   font-family: var(--font-ui) !important;
 }
 
+.hero-section {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  flex-shrink: 0 !important;
+}
+
+.hero-section .terminal-header {
+  flex-shrink: 0 !important;
+}
+
+.hero-section .alert-stack {
+  flex-shrink: 0 !important;
+}
+
+.hero-section .terminal-workspace {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
 .terminal-workspace {
   display: grid !important;
   grid-template-columns: 1fr 460px !important;
   grid-template-rows: minmax(0, 1fr) !important;
   gap: 1px !important;
-  flex: 1 1 auto !important;
-  height: calc(100dvh - 48px - 36px) !important;
-  max-height: calc(100dvh - 48px - 36px) !important;
-  min-height: 540px !important;
-  overflow: hidden !important;
   padding: 0 !important;
   background: var(--border) !important;
 }
 
 @media (max-width: 900px) {
-  .terminal-workspace {
+  .hero-section {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .hero-section .terminal-workspace {
     grid-template-columns: 1fr !important;
     grid-template-rows: auto !important;
+    flex: none !important;
     height: auto !important;
     max-height: none !important;
     min-height: auto !important;
@@ -244,6 +277,14 @@ html, body {
   letter-spacing: 0.02em !important;
   text-shadow: none !important;
   margin-right: auto !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s ease !important;
+}
+
+.brand-title:hover {
+  opacity: 0.8 !important;
+  text-decoration: none !important;
 }
 
 .brand-badge { display: none !important; }
@@ -1198,12 +1239,25 @@ body.mode-aviation .aviation-metar-card {
 .faq-section {
   background: var(--surface) !important;
   border-top: 1px solid var(--border) !important;
+  min-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  flex-shrink: 0 !important;
 }
 
 .faq-inner {
   max-width: 900px !important;
+  width: 100% !important;
   margin: 0 auto !important;
-  padding: 32px 20px !important;
+  padding: 40px 20px !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
 }
 
 .faq-heading {
@@ -1291,6 +1345,7 @@ body.farmer-mode .faq-plus { color: #f59e0b !important; }
   height: auto !important;
   min-height: 0 !important;
   font-size: 11px !important;
+  flex-shrink: 0 !important;
 }
 
 .terminal-footer .muted.mono,
@@ -1318,6 +1373,15 @@ body.farmer-mode .faq-plus { color: #f59e0b !important; }
   border: none !important;
   font-weight: 500 !important;
   animation: none !important;
+  transition: color 0.2s ease !important;
+}
+
+.footer-status #securityVerifiedBadge.is-offline {
+  color: #ef4444 !important;
+}
+
+.footer-status #securityVerifiedBadge.is-online {
+  color: #10b981 !important;
 }
 
 .status-dot,
@@ -1329,6 +1393,19 @@ body.farmer-mode .faq-plus { color: #f59e0b !important; }
   box-shadow: none !important;
   animation: design-pulse 2s infinite !important;
   flex-shrink: 0;
+  transition: background 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.status-dot.is-online,
+.footer-status .status-dot.is-online {
+  background: #10b981 !important;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4) !important;
+}
+
+.status-dot.is-offline,
+.footer-status .status-dot.is-offline {
+  background: #ef4444 !important;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4) !important;
 }
 
 @keyframes design-pulse {

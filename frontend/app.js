@@ -191,15 +191,6 @@ function initMap() {
     };
     satControl.addTo(state.map);
   }
-
-  // Click on map to reposition tactical radar sweep & update active location
-  state.map.on('click', (e) => {
-    const lat = e.latlng.lat;
-    const lon = e.latlng.lng;
-    state.activeLocation = { latitude: lat, longitude: lon, city: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°` };
-    state.currentLocation = state.activeLocation;
-    initRadar(lat, lon);
-  });
 }
 
 /**
@@ -2686,6 +2677,9 @@ function setupVoiceInput() {
 
 // ── 12. Health Check ────────────────────────────────────────────────────────
 async function checkBackendHealth() {
+  const badge = document.getElementById('securityVerifiedBadge');
+  const dot = document.querySelector('.footer-status .status-dot') || document.getElementById('footerStatusDot');
+
   try {
     const res = await fetch('/health', { cache: 'no-store' });
     if (!res.ok) throw new Error();
@@ -2694,11 +2688,31 @@ async function checkBackendHealth() {
       elements.systemIndicator.style.backgroundColor = '#00FF41';
       elements.systemIndicator.style.boxShadow = '0 0 8px #00FF41';
     }
+    if (badge) {
+      badge.textContent = 'System Online';
+      badge.classList.remove('is-offline');
+      badge.classList.add('is-online');
+      badge.title = 'Backend connection active and healthy';
+    }
+    if (dot) {
+      dot.classList.remove('is-offline');
+      dot.classList.add('is-online');
+    }
   } catch {
     if (elements.systemStatusText) elements.systemStatusText.textContent = 'SYS_OFFLINE';
     if (elements.systemIndicator) {
       elements.systemIndicator.style.backgroundColor = '#FF3131';
       elements.systemIndicator.style.boxShadow = '0 0 8px #FF3131';
+    }
+    if (badge) {
+      badge.textContent = 'System Offline';
+      badge.classList.remove('is-online');
+      badge.classList.add('is-offline');
+      badge.title = 'Unable to communicate with backend server';
+    }
+    if (dot) {
+      dot.classList.remove('is-online');
+      dot.classList.add('is-offline');
     }
   }
 }
@@ -2913,16 +2927,10 @@ function applyLocalization(langCode) {
 function updateBhashiniBadge(langCode) {
   const badge = document.getElementById('securityVerifiedBadge');
   if (!badge) return;
-  const code = (langCode || '').toLowerCase().trim().split('-')[0];
-  const isRegional = Boolean(code && code !== 'en' && code !== 'auto');
-  if (isRegional) {
-    badge.classList.add('bhashini-active');
-    badge.textContent = 'SECURITY: VERIFIED // BHASHINI ACTIVE';
-    badge.title = 'Digital India Bhashini National Language Core Active [MeitY ULCA]';
+  if (badge.classList.contains('is-offline')) {
+    badge.textContent = 'System Offline';
   } else {
-    badge.classList.remove('bhashini-active');
-    badge.textContent = 'SECURITY: VERIFIED';
-    badge.title = 'Security Integrity Verified';
+    badge.textContent = 'System Online';
   }
 }
 window.updateBhashiniBadge = updateBhashiniBadge;
@@ -2952,6 +2960,20 @@ function initializeTerminal() {
   initIntervalButtons();
   setupVoiceInput();
   checkBackendHealth();
+  setInterval(checkBackendHealth, 10000);
+
+  // Smooth scroll to FAQ on brand title click
+  const brandTitle = document.getElementById('brandTitleLink') || document.querySelector('.brand-title');
+  if (brandTitle) {
+    brandTitle.addEventListener('click', (e) => {
+      e.preventDefault();
+      const faq = document.getElementById('faqSection');
+      if (faq) {
+        faq.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
   updateQuickPromptButtonsForMode(state.currentMode);
   applyLocalization(elements.languageSelect ? elements.languageSelect.value : 'en');
 

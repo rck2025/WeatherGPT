@@ -20,9 +20,11 @@
 <body class="theme-dark">
   <div class="terminal-app app-root">
 
-    <!-- Header — exact WeatherGPT Design.zip layout -->
-    <header class="terminal-header">
-      <span class="brand-title mono">WeatherGPT</span>
+    <!-- Hero section (full viewport height on load) -->
+    <div class="hero-section" id="heroSection">
+      <!-- Header — exact WeatherGPT Design.zip layout -->
+      <header class="terminal-header">
+        <a href="#faqSection" class="brand-title mono" id="brandTitleLink" title="Click to view Frequently Asked Questions">WeatherGPT</a>
 
       <div class="mode-selector-tray theme-toggle" id="modeSelectorTray">
         <button id="mode-btn-standard" type="button" class="mode-pill-btn theme-btn is-active" onclick="setMode('standard')">Standard</button>
@@ -235,12 +237,21 @@
         </div>
       </section>
     </main>
+    </div>
 
-    <!-- FAQ — exact zip copy -->
-    <section class="faq-section" aria-label="Frequently Asked Questions">
+    <!-- FAQ Section (Takes equal full-page space) -->
+    <section class="faq-section" id="faqSection" aria-label="Frequently Asked Questions">
       <div class="faq-inner">
         <h2 class="faq-heading mono">Frequently Asked Questions</h2>
         <div class="faq-list">
+          <details class="faq-item">
+            <summary class="faq-q">How do I view verified sources and documents?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">Below any AI response, click the "Sources" toggle button to expand the referenced documents. Clicking any source pill will open an excerpt inspection modal displaying the referenced pages and text. You can also click "View Document (PDF)" to inspect the full official report or bulletin.</div>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">How do I view active hazards and track them on the map?<span class="faq-plus">+</span></summary>
+            <div class="faq-a">Click the "Active Hazards" toggle button beneath a forecast response to reveal all detected severe weather, squall, or seismic warnings. Clicking any hazard pill will automatically focus the tactical radar map directly onto that hazard's coordinates. You can also use the 1H, 6H, 24H, 48H, and 7D time filters below the map to review historical hazard patterns.</div>
+          </details>
           <details class="faq-item">
             <summary class="faq-q">How does WeatherGPT generate alerts?<span class="faq-plus">+</span></summary>
             <div class="faq-a">WeatherGPT aggregates real-time data from IMD, NDMA, and regional meteorological stations, then uses AI to analyse patterns and generate severity-ranked alerts in plain language across multiple Indian languages.</div>
@@ -267,16 +278,16 @@
           </details>
         </div>
       </div>
-    </section>
 
-    <footer class="terminal-footer">
-      <span class="muted mono">© Ministry of Earth Sciences</span>
-      <div class="footer-status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span id="securityVerifiedBadge" class="security-verified-badge mono muted" data-t="SECURITY_VERIFIED">SYS_ONLINE</span>
-        <span class="footer-system-opt design-hidden" data-t="GRID_OPTIMAL">GRID: OPTIMAL</span>
-      </div>
-    </footer>
+      <footer class="terminal-footer">
+        <span class="muted mono">© Ministry of Earth Sciences</span>
+        <div class="footer-status" id="footerBackendStatus">
+          <span class="status-dot" id="footerStatusDot" aria-hidden="true"></span>
+          <span id="securityVerifiedBadge" class="security-verified-badge mono">System Online</span>
+          <span class="footer-system-opt design-hidden" data-t="GRID_OPTIMAL">GRID: OPTIMAL</span>
+        </div>
+      </footer>
+    </section>
   </div>
 
   <div class="source-modal-backdrop" id="sourceModal" role="dialog" aria-modal="true" aria-labelledby="sourceModalTitle">
