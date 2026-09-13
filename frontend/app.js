@@ -1803,6 +1803,19 @@ function toggleIntelPanel(btn, panelId) {
   updateIntelToggleText(btn);
 }
 
+function formatSourceDisplayName(rawSource) {
+  if (!rawSource) return 'Official Document';
+  let clean = rawSource.replace(/\\/g, '/').split('/').pop().trim();
+  clean = clean.replace(/\.[a-zA-Z0-9]+$/, '');
+  if (/^(imd|usgs|incois|ndmp)$/i.test(clean)) {
+    return clean.toUpperCase();
+  }
+  if (clean.includes('_') || clean.includes('-')) {
+    clean = clean.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return clean || rawSource;
+}
+
 function appendBotMessage(response) {
   const msgEntry = document.createElement('div');
   msgEntry.className = 'message-entry bot-message';
@@ -1863,8 +1876,11 @@ function appendBotMessage(response) {
     const audioHeader = document.createElement('div');
     audioHeader.className = 'audio-player-header';
     audioHeader.innerHTML = `
-      <span class="audio-player-tag">SYS_VOICE // NEURAL_AUDIO_STREAM</span>
-      <span class="audio-status-pill">READY</span>
+      <span class="audio-player-tag">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        Voice Briefing
+      </span>
+      <span class="audio-status-pill">Ready</span>
     `;
     audioWrap.appendChild(audioHeader);
 
@@ -1876,30 +1892,30 @@ function appendBotMessage(response) {
     // Task 2: Force browser re-fetch/handshake via audio.load()
     audioEl.load();
 
-    // Event listener to log SYS_VOICE > PLAYING in terminal console
+    // Event listener for audio status
     audioEl.addEventListener('play', () => {
-      console.log('SYS_VOICE > PLAYING');
+      console.log('Voice Briefing > Playing');
       const pill = audioWrap.querySelector('.audio-status-pill');
       if (pill) {
-        pill.textContent = 'PLAYING';
+        pill.textContent = 'Playing';
         pill.className = 'audio-status-pill is-playing';
       }
     });
 
     audioEl.addEventListener('pause', () => {
-      console.log('SYS_VOICE > PAUSED');
+      console.log('Voice Briefing > Paused');
       const pill = audioWrap.querySelector('.audio-status-pill');
       if (pill) {
-        pill.textContent = 'PAUSED';
+        pill.textContent = 'Paused';
         pill.className = 'audio-status-pill is-paused';
       }
     });
 
     audioEl.addEventListener('ended', () => {
-      console.log('SYS_VOICE > ENDED');
+      console.log('Voice Briefing > Ended');
       const pill = audioWrap.querySelector('.audio-status-pill');
       if (pill) {
-        pill.textContent = 'ENDED';
+        pill.textContent = 'Ended';
         pill.className = 'audio-status-pill';
       }
     });
@@ -1916,11 +1932,13 @@ function appendBotMessage(response) {
   const uniqueSources = new Map();
   rawSources.forEach((src) => {
     const srcName = (src.source || 'Official IMD Document').trim();
-    const normKey = srcName.toLowerCase();
+    const cleanName = formatSourceDisplayName(srcName);
+    const normKey = cleanName.toLowerCase();
 
     if (!uniqueSources.has(normKey)) {
       uniqueSources.set(normKey, {
-        source: srcName,
+        source: cleanName,
+        rawSource: srcName,
         content: src.content || '',
         score: src.score != null ? src.score : null,
         count: 1,
@@ -1986,12 +2004,12 @@ function appendBotMessage(response) {
 
       const labelSpan = document.createElement('span');
       labelSpan.className = 'source-badge-label';
-      labelSpan.textContent = 'SOURCES:';
+      labelSpan.textContent = 'Sources:';
       badgeRow.appendChild(labelSpan);
 
       uniqueSources.forEach((entry) => {
         let pageNum = 'Page 1';
-        const pageMatch = (entry.source + ' ' + entry.content).match(/(?:page|p\.)\s*(\d+)/i);
+        const pageMatch = ((entry.rawSource || entry.source) + ' ' + entry.content).match(/(?:page|p\.)\s*(\d+)/i);
         if (pageMatch) {
           pageNum = `Page ${pageMatch[1]}`;
         } else if (entry.count > 1) {
@@ -1999,7 +2017,7 @@ function appendBotMessage(response) {
         }
 
         let docFilename = 'national_disaster_management_plan.pdf';
-        const sLower = entry.source.toLowerCase();
+        const sLower = (entry.source + ' ' + (entry.rawSource || '')).toLowerCase();
         if (sLower.includes('bulletin') || sLower.includes('nowcast')) {
           docFilename = 'national_bulletin.pdf';
         } else if (sLower.includes('source_registry')) {
@@ -2007,24 +2025,11 @@ function appendBotMessage(response) {
         }
         const docUrl = `/data/${docFilename}`;
 
-        const badgeWrap = document.createElement('div');
-        badgeWrap.style.display = 'inline-flex';
-        badgeWrap.style.alignItems = 'center';
-        badgeWrap.style.gap = '2px';
-
         const badge = document.createElement('button');
         badge.type = 'button';
         badge.className = 'wm-source-badge';
-
-        let tagLabel = 'DOC';
-        if (sLower.includes('imd')) tagLabel = 'IMD';
-        else if (sLower.includes('usgs')) tagLabel = 'USGS';
-        else if (sLower.includes('incois')) tagLabel = 'INCOIS';
-        else if (sLower.includes('ndmp')) tagLabel = 'NDMP';
-
-        const countSuffix = entry.count > 1 ? ` (${entry.count}x)` : '';
-        badge.innerHTML = `<span class="badge-tag">[${tagLabel}]</span> ${escapeHtml(entry.source)} <span style="color:#00FF41; font-weight:700;">(${pageNum})</span>${countSuffix}`;
-        badge.title = `Click to inspect document excerpt (${entry.count} references merged)`;
+        badge.innerHTML = `${escapeHtml(entry.source)} <span class="badge-page-text">(${escapeHtml(pageNum)})</span>`;
+        badge.title = 'Click to inspect document excerpt';
 
         badge.addEventListener('click', () => {
           openSourceModal({
@@ -2036,21 +2041,7 @@ function appendBotMessage(response) {
           });
         });
 
-        const docLink = document.createElement('a');
-        docLink.href = docUrl;
-        docLink.target = '_blank';
-        docLink.rel = 'noopener';
-        docLink.className = 'wm-source-view-link';
-        docLink.style.fontSize = '9px';
-        docLink.style.color = '#00FF41';
-        docLink.style.textDecoration = 'underline';
-        docLink.style.marginLeft = '3px';
-        docLink.textContent = '[VIEW DOC]';
-        docLink.title = `Open ${docFilename} in browser`;
-
-        badgeWrap.appendChild(badge);
-        badgeWrap.appendChild(docLink);
-        badgeRow.appendChild(badgeWrap);
+        badgeRow.appendChild(badge);
       });
 
       sourcePanel.appendChild(badgeRow);
@@ -2086,17 +2077,20 @@ function appendBotMessage(response) {
 
       const hLabel = document.createElement('span');
       hLabel.className = 'source-badge-label';
-      hLabel.textContent = 'RADAR HAZARDS:';
+      hLabel.textContent = 'Active Hazards:';
       hazardRow.appendChild(hLabel);
 
       uniqueAlerts.forEach((alert) => {
-        const isHigh = (alert.severity || '').toLowerCase().includes('high');
         const badge = document.createElement('button');
         badge.type = 'button';
         badge.className = 'wm-source-badge wm-hazard-badge';
+        const src = (alert.source || 'HAZARD').toUpperCase().trim();
+        let title = (alert.title || 'Alert').trim();
+        const srcRegex = new RegExp(`^${src}\\s*[-:]?\\s*`, 'i');
+        title = title.replace(srcRegex, '');
         const locText = alert.latitude != null ? ` [${alert.latitude.toFixed(1)}°, ${alert.longitude.toFixed(1)}°]` : '';
-        badge.innerHTML = `<span style="color:${isHigh ? '#FF3131' : '#FFAC1C'}; font-weight:800;">!</span> [${escapeHtml(alert.source || 'HAZARD')}] ${escapeHtml(alert.title || 'Alert')}${locText} &gt;&gt; FLYTO`;
-        badge.title = 'Click to fly tactical radar to this hazard location';
+        badge.textContent = `${src} - ${title}${locText}`;
+        badge.title = 'Click to focus radar on this hazard location';
 
         badge.addEventListener('click', () => {
           flyToHazard(alert);
@@ -2131,12 +2125,11 @@ function escapeHtml(text) {
 // ── 7. Source Inspection Modal ──────────────────────────────────────────────
 function openSourceModal(sourceItem) {
   if (!elements.sourceModal) return;
-  elements.sourceModalTitle.textContent = `Source Document: ${sourceItem.source || 'IMD Official Bulletin'}`;
+  elements.sourceModalTitle.textContent = formatSourceDisplayName(sourceItem.source) || 'Source Document';
   elements.sourceModalContent.textContent = sourceItem.content || 'Excerpt text unavailable in current index.';
 
-  const pageText = sourceItem.page ? `Page: ${sourceItem.page} • ` : '';
-  const scoreText = sourceItem.score != null ? `Relevance: ${Math.round(Number(sourceItem.score) * 100)}%` : 'Verified Meteorological Intelligence';
-  elements.sourceModalMeta.textContent = `${pageText}${scoreText}`;
+  const pageText = sourceItem.page ? `${sourceItem.page} • ` : '';
+  elements.sourceModalMeta.textContent = `${pageText}Official Verified Intelligence`;
 
   if (elements.sourceDocLink) {
     elements.sourceDocLink.href = sourceItem.docUrl || '/data/national_disaster_management_plan.pdf';
@@ -2522,13 +2515,13 @@ function setupVoiceInput() {
         elements.voiceBtn.setAttribute('title', 'Listening... Click again to process');
         state.isVoiceMode = true;
 
-        // Visual indicator: SYS_VOICE > LISTENING...
+        // Visual indicator: Listening...
         if (voiceIndicatorEl) voiceIndicatorEl.remove();
         voiceIndicatorEl = document.createElement('div');
         voiceIndicatorEl.className = 'message-entry system-loading';
         voiceIndicatorEl.innerHTML = `
           <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#FF3131; box-shadow:0 0 10px #FF3131; margin-right:8px; animation: mic-blink 0.8s infinite;"></span>
-          <span style="color:#FF3131; font-weight:700; letter-spacing:0.5px;">SYS_VOICE &gt; LISTENING...</span>
+          <span style="color:#FF3131; font-weight:700; letter-spacing:0.5px;">Listening...</span>
         `;
         elements.chatStream.appendChild(voiceIndicatorEl);
         voiceIndicatorEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -2547,11 +2540,11 @@ function setupVoiceInput() {
           return;
         }
 
-        // Switch indicator: SYS_VOICE > PROCESSING...
+        // Switch indicator: Processing...
         if (voiceIndicatorEl) {
           voiceIndicatorEl.innerHTML = `
             <div class="system-spinner"></div>
-            <span style="color:var(--terminal-green); font-weight:700; letter-spacing:0.5px;">SYS_VOICE &gt; PROCESSING...</span>
+            <span style="color:var(--terminal-green); font-weight:700; letter-spacing:0.5px;">Processing...</span>
           `;
         }
 
@@ -2655,10 +2648,15 @@ function setupVoiceInput() {
           }
           const errMsg = document.createElement('div');
           errMsg.className = 'message-entry bot-message';
-          const rawErr = err.message || 'Please type query.';
-          const displayErr = rawErr.startsWith('SYS_VOICE >') ? rawErr : `Voice processing failed: ${rawErr}`;
+          const rawErr = (err.message || 'Please type query.').trim();
+          let displayErr = rawErr;
+          if (rawErr.includes('No clear speech detected') || rawErr.includes('NO_SIGNAL')) {
+            displayErr = 'No clear speech detected.';
+          } else if (rawErr.startsWith('SYS_VOICE >')) {
+            displayErr = rawErr.replace(/^SYS_VOICE\s*>\s*[A-Z_]+:\s*/i, '').replace(/^SYS_VOICE\s*>\s*/i, '');
+          }
           errMsg.innerHTML = `
-            <span class="message-prefix" style="color:var(--terminal-red);">SYS_VOICE &gt; ERROR</span>
+            <span class="message-prefix" style="color:var(--terminal-red);">Error</span>
             <div class="message-content" style="color:var(--terminal-red);">
               ${escapeHtml(displayErr)}
             </div>

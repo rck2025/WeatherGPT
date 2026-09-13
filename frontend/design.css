@@ -1358,25 +1358,271 @@ body.mode-farmer .terminal-app {
   background: var(--bg) !important;
 }
 
+/* ── Source Inspector Modal Redesign ────────────────────────────── */
+.source-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000 !important;
+  padding: 16px;
+}
+
+.source-modal-backdrop.is-open {
+  display: flex !important;
+}
+
 .source-modal-window {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5) !important;
+  width: min(540px, 94vw) !important;
+  max-height: 85vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  animation: modal-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .source-modal-header {
-  background: var(--surface2) !important;
+  height: 46px !important;
+  background: var(--surface) !important;
   border-bottom: 1px solid var(--border) !important;
-  color: var(--accent) !important;
-  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--text) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 16px !important;
+}
+
+.source-close-btn {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-muted) !important;
+  border-radius: 6px !important;
+  width: 26px !important;
+  height: 26px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  transition: all 0.15s ease !important;
+}
+
+.source-close-btn:hover {
+  background: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.source-modal-body {
+  padding: 14px 16px !important;
+  margin: 14px 16px 8px 16px !important;
+  background: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-family: var(--font-ui) !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+  color: var(--text) !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+}
+
+.source-modal-meta {
+  padding: 0 16px 12px 16px !important;
+  margin: 0 !important;
+  border-top: none !important;
+  font-family: var(--font-ui) !important;
+  font-size: 11px !important;
+  color: var(--text-muted) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.source-modal-actions {
+  padding: 10px 16px !important;
+  border-top: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  display: flex !important;
+  justify-content: flex-end !important;
 }
 
 .source-doc-btn {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  padding: 7px 14px !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
+}
+
+.source-doc-btn:hover {
   background: var(--accent) !important;
-  color: var(--bg) !important;
+  color: #ffffff !important;
+  border-color: var(--accent) !important;
+}
+
+body.theme-light .source-doc-btn:hover {
+  color: #ffffff !important;
+}
+
+/* ── Audio Player — Modern & Mode-Aware ────────────────────────── */
+.audio-player-wrap {
+  margin-top: 10px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  padding: 10px 12px !important;
   border-radius: var(--radius) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.audio-player-wrap:hover {
+  border-color: var(--accent) !important;
+}
+
+.audio-player-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  font-family: var(--font-ui) !important;
+  font-size: 11.5px !important;
+}
+
+.audio-player-tag {
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  letter-spacing: 0.2px !important;
+}
+
+.audio-status-pill {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  font-family: var(--font-ui) !important;
+  padding: 2px 8px !important;
+  border-radius: 99px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface2) !important;
+  color: var(--text-muted) !important;
+  letter-spacing: 0.3px !important;
+  transition: all 0.2s ease !important;
+}
+
+.audio-status-pill.is-playing {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+.audio-status-pill.is-paused {
+  color: var(--alert-warn) !important;
+  border-color: var(--alert-warn) !important;
+  background: color-mix(in srgb, var(--alert-warn) 15%, transparent) !important;
+}
+
+.audio-player-wrap audio {
+  width: 100% !important;
+  height: 36px !important;
+  outline: none !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  accent-color: var(--accent) !important;
+}
+
+.audio-player-wrap audio::-webkit-media-controls-enclosure {
+  background-color: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.audio-player-wrap audio::-webkit-media-controls-panel {
+  color: var(--text) !important;
+}
+
+.audio-player-wrap audio::-webkit-media-controls-current-time-display,
+.audio-player-wrap audio::-webkit-media-controls-time-remaining-display {
+  color: var(--text-muted) !important;
   font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  text-shadow: none !important;
+}
+
+/* Dynamic mode filters for audio controls */
+body.mode-aviation .audio-player-wrap audio::-webkit-media-controls-play-button,
+body.mode-aviation .audio-player-wrap audio::-webkit-media-controls-timeline,
+body.mode-aviation .audio-player-wrap audio::-webkit-media-controls-mute-button,
+body.mode-aviation .audio-player-wrap audio::-webkit-media-controls-volume-slider {
+  filter: invert(65%) sepia(85%) saturate(800%) hue-rotate(145deg) brightness(105%) contrast(105%) !important;
+}
+
+body.mode-farmer .audio-player-wrap audio::-webkit-media-controls-play-button,
+body.mode-farmer .audio-player-wrap audio::-webkit-media-controls-timeline,
+body.mode-farmer .audio-player-wrap audio::-webkit-media-controls-mute-button,
+body.mode-farmer .audio-player-wrap audio::-webkit-media-controls-volume-slider {
+  filter: invert(65%) sepia(85%) saturate(1200%) hue-rotate(5deg) brightness(105%) contrast(105%) !important;
+}
+
+body:not(.mode-aviation):not(.mode-farmer) .audio-player-wrap audio::-webkit-media-controls-play-button,
+body:not(.mode-aviation):not(.mode-farmer) .audio-player-wrap audio::-webkit-media-controls-timeline,
+body:not(.mode-aviation):not(.mode-farmer) .audio-player-wrap audio::-webkit-media-controls-mute-button,
+body:not(.mode-aviation):not(.mode-farmer) .audio-player-wrap audio::-webkit-media-controls-volume-slider {
+  filter: invert(60%) sepia(60%) saturate(600%) hue-rotate(85deg) brightness(100%) contrast(100%) !important;
+}
+
+/* ── Pill Details ─────────────────────────────────────────────── */
+.badge-page-text {
+  color: var(--accent) !important;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.wm-hazard-badge {
+  border-color: rgba(248, 81, 73, 0.4) !important;
+  color: var(--text) !important;
+  background: var(--surface2) !important;
+}
+
+.wm-hazard-badge:hover {
+  border-color: var(--alert-crit) !important;
+  background: color-mix(in srgb, var(--alert-crit) 12%, transparent) !important;
+  color: var(--alert-crit) !important;
 }
 
 /* Design has Agri-scan / Satellite in panel header — hide floating map duplicates */
