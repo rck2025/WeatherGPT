@@ -510,8 +510,11 @@ body.crisis-mode .crisis-banner {
 .terminal-workspace {
   display: grid;
   grid-template-columns: 1fr 460px;
+  grid-template-rows: minmax(0, 1fr);
   flex: 1;
-  min-height: min(70vh, 720px);
+  height: calc(100dvh - 48px - 36px);
+  max-height: calc(100dvh - 48px - 36px);
+  min-height: 540px;
   overflow: hidden;
   padding: 0;
   gap: 1px;

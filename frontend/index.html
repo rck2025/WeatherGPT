@@ -69,11 +69,10 @@
       <section class="terminal-chat-panel">
         <div class="chat-stream chat-scroll" id="chatStream" aria-live="polite">
           <div class="message-entry bot-message" id="initialWelcomeMessage">
-            <span class="message-prefix">METEOROLOGICAL INTELLIGENCE</span>
+            <span class="message-prefix">INITIALIZATION COMPLETE</span>
             <div class="message-content">
-              <p>Yes, a severe thunderstorm and heavy rain warning is active for Kolkata. A strong low pressure system over the Bay of Bengal is driving conditions — expect lightning, gusty winds of 45–55 km/h, and heavy rainfall across Kolkata, Howrah, and South 24 Parganas over the next 3 hours.</p>
-              <p>Current conditions: 26.9°C, humidity at 97%, winds at 2.7 km/h surface velocity. Conditions are expected to deteriorate rapidly.</p>
-              <p>🔴 Extreme caution advised. A severe cyclonic storm alert has been issued. Stay indoors and monitor official IMD bulletins.</p>
+              <p>Welcome to WeatherGPT! Connected to Ministry of Earth Sciences (MoES) and live meteorological telemetry stream.</p>
+              <p>Query meteorological status, low pressure systems, alerts, or disaster SOPs. Inquire in English or Indian regional languages.</p>
             </div>
           </div>
         </div>
@@ -157,7 +156,7 @@
         <div class="telemetry-body">
           <div class="radar-wrapper map-wrap">
             <div id="radarMap" class="h-full w-full relative"></div>
-            <div class="radar-sweep-badge" id="radarBadge">RADAR: SWEEP ACTIVE</div>
+            <div class="radar-sweep-badge" id="radarBadge">Live Weather Radar</div>
           </div>
 
           <div class="local-env-toolbar">
@@ -220,15 +219,15 @@
 
             <div class="telemetry-card aviation-metar-card" id="aviationMetarCard" style="display: none;">
               <div class="telemetry-card-header">
-                <span id="metarCardTitle" class="mono" style="font-size: 10px; color: var(--accent); letter-spacing: 0.08em; opacity: 0.8;">SYS_METAR_TAF // RUNWAY_CONDITION_REPORT</span>
+                <span id="metarCardTitle" class="mono" style="font-size: 11px; color: #00d4ff; letter-spacing: 0.08em; font-weight: 700;">RUNWAY CONDITION REPORT</span>
                 <span id="metarCardBadge" class="design-hidden">LIVE IMD MWO</span>
               </div>
               <div class="telemetry-card-body">
-                <div id="metarRawDisplay" class="mono muted" style="font-size: 11px; line-height: 1.7;">
+                <div id="metarRawDisplay" class="mono muted" style="font-size: 12px; line-height: 1.7;">
                   METAR VECC 101830Z 02008KT 6000 FEW025 28/22 Q1013 NOSIG
                 </div>
-                <div id="metarFlightRulesDisplay" class="mono muted" style="font-size: 11px; margin-top: 4px;">
-                  DECISION SUPPORT: 🟢 VFR (SUITABLE) // DGCA CAR SERIES M COMPLIANT
+                <div id="metarFlightRulesDisplay" class="mono muted" style="font-size: 12px; margin-top: 4px;">
+                  DECISION SUPPORT: 🟢 VFR (SUITABLE)
                 </div>
               </div>
             </div>
@@ -283,14 +282,14 @@
   <div class="source-modal-backdrop" id="sourceModal" role="dialog" aria-modal="true" aria-labelledby="sourceModalTitle">
     <div class="source-modal-window">
       <div class="source-modal-header">
-        <span id="sourceModalTitle">SOURCE INSPECTION // RAG DOCUMENT</span>
+        <span id="sourceModalTitle">Source Document Inspection</span>
         <button type="button" class="source-close-btn" id="closeSourceModalBtn" aria-label="Close modal">&#10005;</button>
       </div>
       <div class="source-modal-body" id="sourceModalContent"></div>
       <div class="source-modal-meta" id="sourceModalMeta"></div>
       <div class="source-modal-actions" style="padding: 10px 14px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: var(--surface);">
-        <a id="sourceDocLink" class="source-doc-btn" target="_blank" rel="noopener" href="/data/national_disaster_management_plan.pdf" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; text-decoration: none; font-size: 11px; font-weight: 700;">
-          <span>VIEW DOCUMENT (PDF)</span> &gt;&gt;
+        <a id="sourceDocLink" class="source-doc-btn" target="_blank" rel="noopener" href="/data/national_disaster_management_plan.pdf" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+          <span>View PDF Document</span> &gt;&gt;
         </a>
       </div>
     </div>

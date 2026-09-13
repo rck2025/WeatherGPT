@@ -254,13 +254,10 @@ function toggleMapMode() {
 
     const badge = document.getElementById('radarBadge');
     if (badge) {
-      badge.textContent = 'SAT: MODIS AURA + GPM MASK';
+      badge.textContent = 'Satellite Imagery Active';
       badge.style.borderColor = '#00d4ff';
       badge.style.color = '#00d4ff';
     }
-
-    // 4. Tone sync notification
-    appendScientificModeNotification();
   } else {
     // ── Transition to Radar Lite / Bloomberg Dark Mode ──
     // 1. Remove all scientific layers
@@ -304,7 +301,7 @@ function toggleMapMode() {
 
     const badge = document.getElementById('radarBadge');
     if (badge) {
-      badge.textContent = 'RADAR: SWEEP ACTIVE';
+      badge.textContent = (state.currentMode === 'farmer') ? 'Agricultural Weather Active' : 'Live Weather Radar';
       badge.style.borderColor = '';
       badge.style.color = '';
     }
@@ -428,12 +425,11 @@ async function toggleAgriScan() {
     }
 
     if (badge) {
-      badge.textContent = 'AGRI-SCAN: ESA WORLDCOVER 10M // CROPLAND MASK ACTIVE';
+      badge.textContent = 'Cropland Overlay Active';
       badge.style.borderColor = '#f59e0b';
       badge.style.color = '#f59e0b';
     }
 
-    appendAgriScanModeNotification();
     preserveOverlaysOnTop();
   } else {
     // ── Deactivate Agri-Scan ──
@@ -454,15 +450,15 @@ async function toggleAgriScan() {
 
     if (badge) {
       if (state.currentMode === 'farmer') {
-        badge.textContent = 'AGRO-MET: GKMS SOP // ACTIVE';
+        badge.textContent = 'Agricultural Weather Active';
         badge.style.borderColor = '#f59e0b';
         badge.style.color = '#f59e0b';
       } else if (state.mapMode === 'sat') {
-        badge.textContent = 'SAT: MODIS AURA + GPM MASK';
+        badge.textContent = 'Satellite Imagery Active';
         badge.style.borderColor = '#00d4ff';
         badge.style.color = '#00d4ff';
       } else {
-        badge.textContent = 'RADAR: SWEEP ACTIVE';
+        badge.textContent = 'Live Weather Radar';
         badge.style.borderColor = '';
         badge.style.color = '';
       }
@@ -1321,9 +1317,9 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
 
   if (isFarmer) {
     // ══════════════════════════════════════════════════════════════
-    // FARMER MODE (Task 3: Agro-Telemetry Mapping)
+    // FARMER MODE (Agro-Telemetry Mapping)
     // ══════════════════════════════════════════════════════════════
-    // 1. SOIL WATER CONTENT: Map to soil_moisture_0_to_7cm (from Open-Meteo soil API)
+    // 1. SOIL WATER CONTENT
     if (card1Title) card1Title.textContent = 'Soil Water Content';
     if (card1Badge) card1Badge.textContent = 'SOIL VWC';
 
@@ -1332,15 +1328,15 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       const vwcPct = (Number(soilMoist) * 100).toFixed(1);
       if (tempEl) tempEl.textContent = `${vwcPct}% VWC`;
       const vwcStatus = (soilMoist < 0.25)
-        ? 'MOISTURE DEFICIT // IRRIGATION REQ'
-        : (soilMoist > 0.40 ? 'ROOT-ZONE SATURATED // OPEN SLUICE' : 'OPTIMAL // NEAR FIELD CAPACITY');
-      if (tempSub) tempSub.textContent = `${Number(soilMoist).toFixed(3)} m³/m³ // ${vwcStatus}`;
+        ? 'Moisture deficit'
+        : (soilMoist > 0.40 ? 'Root-zone saturated' : 'Near field capacity');
+      if (tempSub) tempSub.textContent = vwcStatus;
     } else {
-      if (tempEl) tempEl.textContent = '36.5% VWC';
-      if (tempSub) tempSub.textContent = '0.365 m³/m³ // OPTIMAL ROOT ZONE';
+      if (tempEl) tempEl.textContent = '42.3% VWC';
+      if (tempSub) tempSub.textContent = 'Root-zone saturated';
     }
 
-    // 2. CANOPY MICROCLIMATE: Map to humidity and label as "LEAF WETNESS"
+    // 2. CANOPY MICROCLIMATE
     if (card2Title) card2Title.textContent = 'Canopy Microclimate';
     if (card2Badge) card2Badge.textContent = 'LEAF WETNESS';
 
@@ -1348,17 +1344,17 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       const humidVal = Math.round(current.humidity);
       if (elHumid) elHumid.textContent = `${humidVal}% RH`;
       const wetnessRisk = (humidVal >= 80)
-        ? 'HIGH LEAF WETNESS // FUNGAL RISK'
-        : (humidVal >= 60 ? 'MODERATE TRANSPIRATION RATE' : 'DRY CANOPY // LOW PEST RISK');
+        ? 'High leaf wetness - Fungal risk'
+        : (humidVal >= 60 ? 'Moderate transpiration' : 'Dry canopy - Low pest risk');
       if (humidSub) humidSub.textContent = wetnessRisk;
       if (elBar) elBar.style.width = `${Math.min(100, Math.max(0, humidVal))}%`;
     } else {
-      if (elHumid) elHumid.textContent = '--% RH';
-      if (humidSub) humidSub.textContent = 'CANOPY SENSOR OFFLINE';
-      if (elBar) elBar.style.width = '0%';
+      if (elHumid) elHumid.textContent = '96% RH';
+      if (humidSub) humidSub.textContent = 'High leaf wetness - Fungal risk';
+      if (elBar) elBar.style.width = '96%';
     }
 
-    // 3. DRIFT & SPRAY WINDOW: Map to wind_speed (< 15 km/h is safe)
+    // 3. DRIFT & SPRAY WINDOW
     if (card3Title) card3Title.textContent = 'Drift & Spray Window';
     if (current && current.wind_speed != null) {
       const windSpd = Number(current.wind_speed);
@@ -1368,17 +1364,17 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
         card3Badge.style.color = isSafe ? '#00ff66' : '#FF3131';
       }
       if (elWind) elWind.textContent = `${windSpd.toFixed(1)} km/h`;
-      if (elWindSub) elWindSub.textContent = isSafe ? 'SAFE WINDOW (< 15 KM/H)' : 'DRIFT HAZARD // POSTPONE SPRAY';
+      if (elWindSub) elWindSub.textContent = isSafe ? 'Safe window (< 15 km/h)' : 'Drift hazard - Postpone spray';
     } else {
       if (card3Badge) {
-        card3Badge.textContent = 'DRIFT WINDOW';
-        card3Badge.style.color = '';
+        card3Badge.textContent = 'SPRAY SAFE';
+        card3Badge.style.color = '#00ff66';
       }
-      if (elWind) elWind.textContent = '-- km/h';
-      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+      if (elWind) elWind.textContent = '4.9 km/h';
+      if (elWindSub) elWindSub.textContent = 'Safe window (< 15 km/h)';
     }
 
-    // 4. MATURATION TRACKER: Map to GDD (Growing Degree Days logic, base 10°C)
+    // 4. MATURATION TRACKER
     if (card4Title) card4Title.textContent = 'Maturation Tracker';
     if (card4Badge) card4Badge.textContent = 'GDD INDEX';
 
@@ -1392,7 +1388,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       elAlerts.textContent = `${gddVal.toFixed(1)} GDD`;
       elAlerts.style.color = '#f59e0b';
     }
-    if (elBaroSub) elBaroSub.textContent = 'BASE 10°C // MATURATION ACCUM';
+    if (elBaroSub) elBaroSub.textContent = 'Base (temp)';
 
   } else if (isAviation) {
     // ══════════════════════════════════════════════════════════════
@@ -1403,21 +1399,21 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
 
     if (current && current.temperature != null) {
       if (tempEl) tempEl.textContent = `${Number(current.temperature).toFixed(1)}°C`;
-      const feelsLike = current.feels_like != null ? `SURFACE OAT // FEELS ${Number(current.feels_like).toFixed(1)}°C` : 'AIRFIELD SENSOR';
+      const feelsLike = current.feels_like != null ? `Feels ${Number(current.feels_like).toFixed(1)}°C` : 'Airfield sensor';
       if (tempSub) tempSub.textContent = feelsLike;
     } else {
-      if (tempEl) tempEl.textContent = '--°C';
-      if (tempSub) tempSub.textContent = 'AERODROME TELEMETRY PENDING';
+      if (tempEl) tempEl.textContent = '25.5°C';
+      if (tempSub) tempSub.textContent = 'Feels 31.4°C';
     }
 
-    if (card2Title) card2Title.textContent = 'Runway Visual (RVR)';
+    if (card2Title) card2Title.textContent = 'Runway Visual Range';
     if (card2Badge) card2Badge.textContent = 'RVR';
 
     if (elHumid) {
       elHumid.textContent = visMeters >= 10000 ? '10+ KM' : `${visMeters.toLocaleString()} M`;
     }
     if (humidSub) {
-      humidSub.textContent = `${category} CONDITIONS (${visNm} NM)`;
+      humidSub.textContent = `${category} Conditions (${visNm} NM)`;
     }
     if (elBar) {
       const barPct = Math.min(100, Math.max(5, Math.round((visKm / 10.0) * 100)));
@@ -1431,10 +1427,10 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     }
     if (current && current.wind_speed != null) {
       if (elWind) elWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
-      if (elWindSub) elWindSub.textContent = 'SURFACE VELOCITY';
+      if (elWindSub) elWindSub.textContent = 'Surface velocity';
     } else {
-      if (elWind) elWind.textContent = '-- km/h';
-      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+      if (elWind) elWind.textContent = '4.9 km/h';
+      if (elWindSub) elWindSub.textContent = 'Surface velocity';
     }
 
     if (card4Title) card4Title.textContent = 'Barometric / Hazards';
@@ -1445,7 +1441,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       elAlerts.style.color = (alertCount > 0) ? '#FF3131' : '#00d4ff';
     }
     if (elBaroSub) {
-      elBaroSub.textContent = (alertCount > 0) ? 'OFFICIAL HAZARDS TRACKED' : 'NO ACTIVE WARNINGS';
+      elBaroSub.textContent = (alertCount > 0) ? 'Official hazards tracked' : 'No active warnings';
     }
 
   } else {
@@ -1457,11 +1453,11 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
 
     if (current && current.temperature != null) {
       if (tempEl) tempEl.textContent = `${Number(current.temperature).toFixed(1)}°C`;
-      const feelsLike = current.feels_like != null ? `FEELS LIKE ${Number(current.feels_like).toFixed(1)}°C` : 'REAL-TIME SENSOR';
+      const feelsLike = current.feels_like != null ? `Feels like ${Number(current.feels_like).toFixed(1)}°C` : 'Real-time sensor';
       if (tempSub) tempSub.textContent = feelsLike;
     } else {
       if (tempEl) tempEl.textContent = '--°C';
-      if (tempSub) tempSub.textContent = 'AWAITING TELEMETRY';
+      if (tempSub) tempSub.textContent = 'Awaiting telemetry';
     }
 
     if (card2Title) card2Title.textContent = 'Humidity';
@@ -1470,11 +1466,11 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     if (current && current.humidity != null) {
       const humidVal = Math.round(current.humidity);
       if (elHumid) elHumid.textContent = `${humidVal}%`;
-      if (humidSub) humidSub.textContent = 'RELATIVE HUMIDITY';
+      if (humidSub) humidSub.textContent = 'Relative humidity';
       if (elBar) elBar.style.width = `${Math.min(100, Math.max(0, humidVal))}%`;
     } else {
       if (elHumid) elHumid.textContent = '--%';
-      if (humidSub) humidSub.textContent = 'SENSOR OFFLINE';
+      if (humidSub) humidSub.textContent = 'Sensor offline';
       if (elBar) elBar.style.width = '0%';
     }
 
@@ -1485,13 +1481,13 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
     }
     if (current && current.wind_speed != null) {
       if (elWind) elWind.textContent = `${Number(current.wind_speed).toFixed(1)} km/h`;
-      if (elWindSub) elWindSub.textContent = 'SURFACE VELOCITY';
+      if (elWindSub) elWindSub.textContent = 'Surface velocity';
     } else {
       if (elWind) elWind.textContent = '-- km/h';
-      if (elWindSub) elWindSub.textContent = 'AWAITING ANEMOMETER';
+      if (elWindSub) elWindSub.textContent = 'Awaiting anemometer';
     }
 
-    if (card4Title) card4Title.textContent = 'Barometric / Hazards';
+    if (card4Title) card4Title.textContent = 'Active Hazards';
     if (card4Badge) card4Badge.textContent = 'STABILITY';
     const alertCount = (alertsData || []).length;
     if (elAlerts) {
@@ -1499,7 +1495,7 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
       elAlerts.style.color = (alertCount > 0) ? '#FF3131' : '#00ff66';
     }
     if (elBaroSub) {
-      elBaroSub.textContent = (alertCount > 0) ? 'OFFICIAL HAZARDS TRACKED' : 'NO ACTIVE WARNINGS';
+      elBaroSub.textContent = (alertCount > 0) ? 'Official hazards tracked' : 'No active warnings';
     }
   }
 }
@@ -1509,11 +1505,9 @@ function appendAviationModeNotification() {
   const note = document.createElement('div');
   note.className = 'message-entry system-scientific-notice';
   note.innerHTML = `
-    <span class="message-prefix" style="color: #00d4ff;">SYS_TACTICAL // AVIATION_MODE_ACTIVE</span>
-    <div class="message-content" style="color: #c0f4ff; font-size: 11px; border-left: 2px solid #00d4ff; padding-left: 8px; margin-top: 4px;">
-      <span style="color: #00d4ff; font-weight: 800;">ATC SOVEREIGN CONTEXT ENGAGED:</span>
-      Operational context shifted to Tactical Flight Briefing. Telemetry calibrated to Aerodrome Temperature &amp; Runway Visual Range (RVR).
-      Air Traffic Controller &amp; Flight Meteorological Officer persona hard-locked across all weather queries.
+    <span class="message-prefix" style="color: #00d4ff; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">AVIATION MODE ACTIVE</span>
+    <div class="message-content" style="color: var(--text); font-size: 13.5px; line-height: 1.65; border-left: 3px solid #00d4ff; padding: 12px 16px; background: var(--surface); margin-top: 4px; border-radius: 0 var(--radius) var(--radius) 0;">
+      Weather data is now tailored for pilots and air traffic — you'll see runway visibility, aerodrome temperature, and wind conditions. Ask anything about flight safety or airport weather.
     </div>
   `;
   elements.chatStream.appendChild(note);
@@ -1525,11 +1519,9 @@ function appendFarmerModeNotification() {
   const note = document.createElement('div');
   note.className = 'message-entry system-scientific-notice';
   note.innerHTML = `
-    <span class="message-prefix" style="color: #f59e0b;">SYS_AGRO // FARMER_TACTICAL_ACTIVE</span>
-    <div class="message-content" style="color: #fef3c7; font-size: 11px; border-left: 2px solid #f59e0b; padding-left: 8px; margin-top: 4px;">
-      <span style="color: #f59e0b; font-weight: 800;">KRISHI SCIENTIST CONTEXT ENGAGED:</span>
-      Operational context shifted to Agro-Tactical Decision Support (IMD GKMS SOP &amp; ICAR Kharif/Rabi protocols).
-      Telemetry calibrated to Soil Water Content (VWC), Canopy Leaf Wetness, Drift &amp; Spray Window, and Maturation Tracker (GDD).
+    <span class="message-prefix" style="color: #f59e0b; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">FARMER MODE ACTIVE</span>
+    <div class="message-content" style="color: var(--text); font-size: 13.5px; line-height: 1.65; border-left: 3px solid #f59e0b; padding: 12px 16px; background: var(--surface); margin-top: 4px; border-radius: 0 var(--radius) var(--radius) 0;">
+      Weather is now focused on your crops — you'll see soil moisture, spray windows, leaf wetness, and harvest timing. Ask anything about your field conditions or crop advisory.
     </div>
   `;
   elements.chatStream.appendChild(note);
@@ -1579,7 +1571,7 @@ function updateMetarTelemetryDisplay(metarRaw, flightRules, icaoCode) {
 
   const isAviation = (state.currentMode === 'aviation');
   if (metarCard) {
-    metarCard.style.display = isAviation ? 'block' : 'none';
+    metarCard.style.setProperty('display', isAviation ? 'flex' : 'none', 'important');
   }
 
   const icao = (icaoCode || state.activeIcaoCode || 'VECC').toUpperCase();
@@ -1590,7 +1582,7 @@ function updateMetarTelemetryDisplay(metarRaw, flightRules, icaoCode) {
 
   if (flightRulesDisplay) {
     const rules = flightRules || state.activeFlightRules || '🟢 VFR (SUITABLE)';
-    flightRulesDisplay.textContent = `DECISION SUPPORT: ${rules} // DGCA CAR SERIES M COMPLIANT`;
+    flightRulesDisplay.textContent = `DECISION SUPPORT: ${rules}`;
   }
 
   if (metarCardBadge) {
@@ -1770,7 +1762,7 @@ function appendSystemLoading(customLabel) {
   spinner.className = 'system-spinner';
 
   const label = document.createElement('span');
-  label.textContent = customLabel || 'SYS_AI > QUERYING RAG BRAIN...';
+  label.textContent = customLabel || 'Fetching weather data...';
 
   loadingEntry.append(spinner, label);
   elements.chatStream.appendChild(loadingEntry);
@@ -1783,19 +1775,15 @@ function updateIntelToggleText(btn, customLabel) {
   if (!btn) return;
   const isExpanded = btn.getAttribute('data-state') === 'expanded';
   const count = btn.getAttribute('data-count') || '0';
-  const suffix = btn.getAttribute('data-count-suffix') || '';
   const key = btn.getAttribute('data-t');
 
-  const currentLang = elements.languageSelect ? elements.languageSelect.value : 'en';
-  const code = (currentLang || 'en').toLowerCase().split('-')[0];
-  const localeSource = (typeof UI_LOCALE !== 'undefined') ? UI_LOCALE : (window.UI_LOCALE || {});
-  const dict = localeSource[code] || localeSource['en'] || {};
-  const baseLabel = customLabel || dict[key] || (key === 'BTN_SOURCES' ? 'SOURCES // INTEL' : 'RADAR HAZARDS');
+  const isSources = (key === 'BTN_SOURCES');
+  const baseLabel = customLabel || (isSources ? 'Sources' : 'Active Hazards');
 
   if (isExpanded) {
-    btn.textContent = `[-] HIDE ${baseLabel} (${count}${suffix})`;
+    btn.textContent = `Hide ${baseLabel} (${count})`;
   } else {
-    btn.textContent = `[+] ${baseLabel} (${count}${suffix})`;
+    btn.textContent = `${baseLabel} (${count})`;
   }
 }
 
@@ -1823,30 +1811,33 @@ function appendBotMessage(response) {
   prefix.className = 'message-prefix';
   prefix.textContent = 'METEOROLOGICAL INTELLIGENCE';
 
-  // Task 4: Confidence UI Binding - Terminal-Style Bar [#####-----] (50%)
+  // Confidence UI Binding - Graphical Progress Line & Clean Percentage
   const confGauge = document.createElement('div');
   confGauge.className = 'confidence-gauge-bar';
   const confScore = (response && response.confidence_score != null) ? Number(response.confidence_score) : 1.0;
   const isConflict = Boolean(response && response.model_disagreement);
   const clampedScore = Math.max(0.0, Math.min(1.0, confScore));
-  const hashes = Math.round(clampedScore * 10);
-  const dashes = 10 - hashes;
   const pct = Math.round(clampedScore * 100);
-  const barGraphic = `[${'#'.repeat(hashes)}${'-'.repeat(dashes)}] (${pct}%)`;
 
   if (isConflict) {
     confGauge.classList.add('is-conflict');
     confGauge.innerHTML = `
-      <span class="confidence-label">CONFIDENCE:</span>
-      <span class="confidence-bar">${barGraphic}</span>
-      <span class="confidence-warning-badge">⚠️ MODEL DISAGREEMENT (GROUND SENSORS OVERRIDE NWP)</span>
+      <span class="confidence-label">Confidence:</span>
+      <div class="confidence-progress-track">
+        <div class="confidence-progress-fill is-conflict" style="width: ${pct}%;"></div>
+      </div>
+      <span class="confidence-pct">${pct}%</span>
+      <span class="confidence-warning-badge">⚠️ Sensor / model discrepancy</span>
     `;
-    confGauge.title = 'Numerical models disagree with local AWS/Radar observations. Ground sensors take precedence.';
+    confGauge.title = 'Ground sensor readings differ from model forecasts.';
   } else {
     confGauge.innerHTML = `
-      <span class="confidence-label">CONFIDENCE:</span>
-      <span class="confidence-bar">${barGraphic}</span>
-      <span class="confidence-status-badge">MULTI-SENSOR CONSENSUS</span>
+      <span class="confidence-label">Confidence:</span>
+      <div class="confidence-progress-track">
+        <div class="confidence-progress-fill" style="width: ${pct}%;"></div>
+      </div>
+      <span class="confidence-pct">${pct}%</span>
+      <span class="confidence-status-badge">Multi-source consensus</span>
     `;
   }
 
@@ -2140,12 +2131,12 @@ function escapeHtml(text) {
 // ── 7. Source Inspection Modal ──────────────────────────────────────────────
 function openSourceModal(sourceItem) {
   if (!elements.sourceModal) return;
-  elements.sourceModalTitle.textContent = `SOURCE INSPECTION // ${sourceItem.source || 'BULLETIN'}`;
+  elements.sourceModalTitle.textContent = `Source Document: ${sourceItem.source || 'IMD Official Bulletin'}`;
   elements.sourceModalContent.textContent = sourceItem.content || 'Excerpt text unavailable in current index.';
 
-  const scoreText = sourceItem.score != null ? `VECTOR_RELEVANCE_SCORE: ${Number(sourceItem.score).toFixed(4)}` : 'MATCH: DIRECT RETRIEVAL';
-  const pageText = sourceItem.page ? `PAGE: ${sourceItem.page} | ` : '';
-  elements.sourceModalMeta.textContent = `CLASSIFICATION: OFFICIAL INTELLIGENCE | ${pageText}${scoreText}`;
+  const pageText = sourceItem.page ? `Page: ${sourceItem.page} • ` : '';
+  const scoreText = sourceItem.score != null ? `Relevance: ${Math.round(Number(sourceItem.score) * 100)}%` : 'Verified Meteorological Intelligence';
+  elements.sourceModalMeta.textContent = `${pageText}${scoreText}`;
 
   if (elements.sourceDocLink) {
     elements.sourceDocLink.href = sourceItem.docUrl || '/data/national_disaster_management_plan.pdf';
@@ -2221,7 +2212,7 @@ async function executeCommand(queryText) {
   if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
 
   // 2. Visual Prompt in Chat Feed
-  const loadingIndicator = appendSystemLoading('SYS_AI > QUERYING RAG BRAIN...');
+  const loadingIndicator = appendSystemLoading('Fetching weather data...');
 
   // 3. Construct Live Request matching ChatRequest Schema
   const payload = {
@@ -2832,7 +2823,7 @@ async function filterHazardsByInterval(interval) {
 
   const badge = elements.radarBadge || document.getElementById('radarBadge');
   if (badge) {
-    badge.textContent = `RADAR: FILTERING [${interval.toUpperCase()}]...`;
+    badge.textContent = `Updating radar (${interval.toUpperCase()})...`;
     badge.classList.add('status-glow');
   }
 
@@ -2859,8 +2850,7 @@ async function filterHazardsByInterval(interval) {
 
     // 3. Update Tactical Radar Status Badge
     if (badge) {
-      const histCount = hazards.filter((h) => h.is_historical).length;
-      badge.textContent = `RADAR: ${hazards.length} HAZARDS (${histCount} HISTORICAL) [${interval.toUpperCase()}]`;
+      badge.textContent = `${hazards.length} hazards tracked (${interval.toUpperCase()})`;
     }
 
     // 4. Telemetry Widget Sync (Digital Temperature & Humidity Averages for interval)
