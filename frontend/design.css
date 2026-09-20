@@ -285,7 +285,7 @@ html {
   background: var(--surface) !important;
   border-bottom: 1px solid var(--border) !important;
   padding: 0 20px !important;
-  height: 48px !important;
+  height: 45px !important;
   display: flex !important;
   align-items: center !important;
   gap: 12px !important;
@@ -396,7 +396,7 @@ html {
 .ticker-tape,
 .alert-bar,
 .crisis-banner {
-  padding: 8px 20px !important;
+  padding: 4px 20px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   letter-spacing: 0.04em !important;
