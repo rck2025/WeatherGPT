@@ -2977,7 +2977,7 @@ body.aviation-theme .telemetry-card {
 }
 
 body.aviation-theme .telemetry-card-header {
-  border-bottom: 1px solid var(--border-dim) !important;
+  border-bottom: none !important;
   color: var(--accent) !important;
 }
 
@@ -3155,7 +3155,7 @@ body.mode-farmer .telemetry-card {
 
 body.farmer-mode .telemetry-card-header,
 body.mode-farmer .telemetry-card-header {
-  border-bottom: 1px solid var(--border-dim) !important;
+  border-bottom: none !important;
   color: var(--accent) !important;
 }
 
