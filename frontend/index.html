@@ -38,6 +38,125 @@
         <button type="button" class="theme-btn legacy-btn" data-theme-set="legacy" title="Legacy">▒</button>
       </div>
 
+      <!-- Accessibility Control Center Trigger & Popover -->
+      <div class="a11y-container" id="a11yContainer">
+        <button
+          type="button"
+          class="a11y-trigger-btn"
+          id="a11yTriggerBtn"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="a11yPopover"
+          aria-label="Accessibility Control Center"
+          title="Accessibility Control Center"
+        >
+          <span class="a11y-icon" aria-hidden="true">♿</span>
+          <span class="a11y-label">Accessibility</span>
+          <span class="a11y-chevron" id="a11yChevron" aria-hidden="true">▼</span>
+        </button>
+
+        <div
+          class="a11y-popover"
+          id="a11yPopover"
+          role="dialog"
+          aria-labelledby="a11yHeaderTitle"
+          aria-modal="false"
+          hidden
+        >
+          <div class="a11y-popover-header">
+            <div class="a11y-title-wrap">
+              <span class="a11y-header-icon" aria-hidden="true">♿</span>
+              <h3 id="a11yHeaderTitle" class="a11y-header-title">Accessibility</h3>
+            </div>
+            <button
+              type="button"
+              class="a11y-close-btn"
+              id="a11yCloseBtn"
+              aria-label="Close Accessibility Menu"
+              title="Close (Esc)"
+            >&#10005;</button>
+          </div>
+
+          <div class="a11y-popover-body">
+            <!-- Feature 1: Dynamic Text Sizing -->
+            <div class="a11y-section">
+              <div class="a11y-section-label" id="textSizeLabel">
+                <span class="a11y-section-title">Text Size</span>
+                <span class="a11y-section-desc">Adjust UI and text font scaling</span>
+              </div>
+              <div class="a11y-btn-group" role="group" aria-labelledby="textSizeLabel">
+                <button
+                  type="button"
+                  class="a11y-btn text-size-btn active"
+                  data-size="normal"
+                  id="textSizeNormal"
+                  aria-pressed="true"
+                >Normal</button>
+                <button
+                  type="button"
+                  class="a11y-btn text-size-btn"
+                  data-size="large"
+                  id="textSizeLarge"
+                  aria-pressed="false"
+                >Large</button>
+                <button
+                  type="button"
+                  class="a11y-btn text-size-btn"
+                  data-size="xlarge"
+                  id="textSizeXLarge"
+                  aria-pressed="false"
+                >Extra Large</button>
+              </div>
+            </div>
+
+            <!-- Feature 2: High Contrast Toggle -->
+            <div class="a11y-section">
+              <div class="a11y-toggle-row">
+                <div class="a11y-label-group">
+                  <span class="a11y-section-title" id="highContrastLabel">High Contrast</span>
+                  <span class="a11y-section-desc">Deep black, pure white text & solid borders</span>
+                </div>
+                <label class="a11y-switch" for="highContrastSwitch">
+                  <input
+                    type="checkbox"
+                    id="highContrastSwitch"
+                    role="switch"
+                    aria-checked="false"
+                    aria-labelledby="highContrastLabel"
+                  />
+                  <span class="a11y-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Feature 3: Screen Reader & Voice Assist Toggle -->
+            <div class="a11y-section">
+              <div class="a11y-toggle-row">
+                <div class="a11y-label-group">
+                  <span class="a11y-section-title" id="autoSpeakLabel">Auto-Speak Alerts</span>
+                  <span class="a11y-section-desc">Announce critical alerts with voice engine</span>
+                </div>
+                <label class="a11y-switch" for="autoSpeakSwitch">
+                  <input
+                    type="checkbox"
+                    id="autoSpeakSwitch"
+                    role="switch"
+                    aria-checked="false"
+                    aria-labelledby="autoSpeakLabel"
+                  />
+                  <span class="a11y-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="a11y-popover-footer">
+            <p class="a11y-footer-note">Designed for elderly users and limited digital literacy</p>
+          </div>
+        </div>
+      </div>
+
+
       <!-- Functional hooks kept off-layout (app.js) -->
       <div class="design-hidden" aria-hidden="true">
         <div class="aerodrome-indicator-tray" id="aerodromeTray">
@@ -59,7 +178,19 @@
         </div>
       </div>
       <div class="crisis-banner alert-bar alert-bar-crit" id="crisisBanner" role="alert">
-        <span>⛔ CRITICAL METEOROLOGICAL ALERT — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>
+        <span class="crisis-banner-text" id="crisisBannerText">⛔ CRITICAL METEOROLOGICAL ALERT — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>
+        <div class="crisis-voice-controls" id="crisisVoiceControls" style="display: none;">
+          <span class="crisis-voice-indicator" id="crisisVoiceIndicator" title="Alert Announcement Playing">
+            <span class="pulse-speaker" aria-hidden="true">🔊</span>
+            <span class="sound-wave-bars" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </span>
+            <span class="voice-status-text" style="font-size: 11px; font-weight: 600;">Speaking Alert...</span>
+          </span>
+          <button type="button" class="crisis-mute-btn" id="stopAlertSpeechBtn" title="Stop Voice Announcement" aria-label="Stop Voice Announcement">
+            <span aria-hidden="true">⏹</span> Mute
+          </button>
+        </div>
       </div>
     </div>
 

@@ -3,6 +3,7 @@ import { sendChatMessage } from './api.js'
 import { Map, LineChart, History, Terminal, TriangleAlert, Database, Settings, Power } from 'lucide-react'
 import WeatherMap from './WeatherMap.jsx'
 import ChatWindow from './ChatWindow.jsx'
+import AccessibilityMenu from './components/AccessibilityMenu.jsx'
 
 function App() {
   const [isAlertActive, setIsAlertActive] = useState(true)
@@ -49,6 +50,7 @@ function App() {
           </nav>
         </div>
         <div className="flex items-center gap-4 text-[#ffc082]">
+          <AccessibilityMenu />
           <Settings size={18} />
           <Power size={18} />
         </div>

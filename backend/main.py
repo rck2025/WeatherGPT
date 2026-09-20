@@ -10,7 +10,16 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
 
-from backend.schemas import ChatRequest, ChatResponse, FullPipelineResponse, Location, LocationInput, WeatherAlert
+from backend.schemas import (
+    AlertAnnounceRequest,
+    AlertAnnounceResponse,
+    ChatRequest,
+    ChatResponse,
+    FullPipelineResponse,
+    Location,
+    LocationInput,
+    WeatherAlert,
+)
 from backend.services.language import language_router, language_service
 from backend.services.language._schemas import TranscribeResponse
 from backend.services.location.resolver import location_resolver
@@ -689,6 +698,129 @@ async def api_voice_transcribe(
                 pass
 
 
+# ------------------------------------------------------------------
+# DEDICATED REGIONAL VOICE ALERT ANNOUNCEMENT ENDPOINT
+# ------------------------------------------------------------------
+@app.post(
+    "/api/voice/announce-alert",
+    response_model=AlertAnnounceResponse,
+    tags=["Voice & Language"],
+)
+@app.post(
+    "/voice/announce-alert",
+    response_model=AlertAnnounceResponse,
+    tags=["Voice & Language"],
+)
+async def announce_alert(req: AlertAnnounceRequest) -> AlertAnnounceResponse:
+    """
+    Synthesize high-priority emergency alert announcements in the user's regional language.
+    1. Formats emergency announcement string from title and details.
+    2. Runs VoiceCleaner to strip technical codes and normalize meteorological units.
+    3. Translates clean alert into target_language using safe_translate (Google/Bhashini).
+    4. Synthesizes neural speech using Edge-TTS with regional voice persona.
+    5. Returns audio as Base64 Data URI and file URL.
+    """
+    import base64
+    import edge_tts
+    import uuid
+    from backend.services.language.cleaner import (
+        VoiceCleaner,
+        clean_bot_response,
+        get_phonetic_fallback_voice,
+        get_voice_for_language,
+        odia_to_phonetic_devanagari,
+        safe_translate,
+    )
+    from backend.services.language.service import _delete_after
+
+    raw_title = re.sub(r"[⚠️⛔🚨*#`]+", "", req.alert_title or "").strip()
+    raw_details = re.sub(r"[⚠️⛔🚨*#`]+", "", req.alert_details or "").strip()
+
+    if raw_details:
+        announcement_raw = f"Emergency Alert: {raw_title}. {raw_details}. Please take shelter and follow safety instructions."
+    else:
+        announcement_raw = f"Emergency Alert: {raw_title}. Please take shelter and follow safety instructions."
+
+    # Step 2: Strip technical codes and normalize units (e.g. 20km -> 20 kilometers, 65 km/h -> 65 kilometers per hour)
+    cleaned_announcement = clean_bot_response(announcement_raw, lang_code="en")
+
+    # Step 3: Translate clean alert into target_language
+    target_lang = (req.target_language or "en").strip().lower().split("-")[0].split("_")[0]
+    if target_lang in ("auto", "none", ""):
+        target_lang = "en"
+
+    if target_lang != "en":
+        try:
+            regional_text = safe_translate(cleaned_announcement, source_lang="en", target_lang=target_lang)
+        except Exception as trans_err:
+            logging.warning("Alert translation failed (%s), using English", trans_err)
+            regional_text = cleaned_announcement
+    else:
+        regional_text = cleaned_announcement
+
+    final_spoken_text = clean_bot_response(regional_text, lang_code=target_lang)
+
+    # Step 4: Pick neural voice and synthesize speech via Edge-TTS
+    voice_name = get_voice_for_language(target_lang)
+    voice_name, target_lang = VoiceCleaner.sanitize_voice_for_script(
+        voice_name=voice_name,
+        text=final_spoken_text,
+        target_lang=target_lang,
+    )
+
+    synth_text = final_spoken_text
+    if target_lang == "or" or any(0x0B00 <= ord(c) <= 0x0B7F for c in synth_text):
+        synth_text = odia_to_phonetic_devanagari(synth_text)
+
+    filename = f"alert_{uuid.uuid4().hex}_{target_lang}.mp3"
+    output_dir = language_service.audio_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = str(output_dir / filename)
+
+    try:
+        communicate = edge_tts.Communicate(synth_text, voice_name)
+        await communicate.save(output_path)
+    except Exception as tts_err:
+        fallback_voice = get_phonetic_fallback_voice(target_lang)
+        logging.warning(
+            "Primary voice '%s' failed for alert (%s). Retrying with fallback '%s'",
+            voice_name,
+            tts_err,
+            fallback_voice,
+        )
+        try:
+            communicate = edge_tts.Communicate(synth_text, fallback_voice)
+            await communicate.save(output_path)
+            voice_name = fallback_voice
+        except Exception as fb_err:
+            logging.error("Fallback voice failed for alert: %s", fb_err)
+            return AlertAnnounceResponse(
+                success=False,
+                spoken_text=final_spoken_text,
+                language=target_lang,
+                voice_used=voice_name,
+                audio_base64=None,
+                audio_url=None,
+                error=str(fb_err),
+            )
+
+    audio_base64 = None
+    if os.path.exists(output_path):
+        with open(output_path, "rb") as fh:
+            b64_data = base64.b64encode(fh.read()).decode("utf-8")
+            audio_base64 = f"data:audio/mp3;base64,{b64_data}"
+        _delete_after(output_path, 180)
+
+    return AlertAnnounceResponse(
+        success=True,
+        spoken_text=final_spoken_text,
+        language=target_lang,
+        voice_used=voice_name,
+        audio_base64=audio_base64,
+        audio_url=f"/voice/audio/{filename}",
+        error=None,
+    )
+
 
 # ------------------------------------------------------------------
 # HISTORICAL TIME-SERIES & TEMPORAL HAZARDS ENDPOINTS
@@ -888,5 +1020,35 @@ else:
     logging.warning("Frontend folder not found at: %s", FRONTEND_DIR)
 
 if __name__ == "__main__":
+    import os
+    import socket
     import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
+
+    def get_port():
+        env_port = os.getenv("PORT")
+        if env_port:
+            return int(env_port)
+        for p in [8000, 8080, 8008, 8888]:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("127.0.0.1", p))
+                    return p
+                except OSError:
+                    continue
+        return 8080
+
+    import sys
+    if sys.stdout.encoding != 'utf-8':
+        try:
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+    selected_port = get_port()
+    print("\n=======================================================")
+    print(f"WeatherGPT starting on http://127.0.0.1:{selected_port}")
+    print(f"API Documentation: http://127.0.0.1:{selected_port}/docs")
+    print("=======================================================\n")
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=selected_port, reload=True)
+
+

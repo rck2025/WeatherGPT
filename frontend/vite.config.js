@@ -4,4 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/chat': 'http://127.0.0.1:8080',
+      '/voice': 'http://127.0.0.1:8080',
+      '/weather': 'http://127.0.0.1:8080',
+      '/health': 'http://127.0.0.1:8080',
+      '/hazards': 'http://127.0.0.1:8080',
+      '/api': 'http://127.0.0.1:8080',
+    },
+  },
 })

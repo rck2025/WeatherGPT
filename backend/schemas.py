@@ -184,4 +184,26 @@ class FullPipelineResponse(BaseModel):
     metar_raw: str | None = None
     flight_rules: str | None = None
 
+
+# -------------------------
+# ALERT ANNOUNCEMENT (Voice Engine Contract)
+# -------------------------
+
+class AlertAnnounceRequest(BaseModel):
+    alert_title: str
+    alert_details: str = ""
+    target_language: str = "en"  # "hi", "bn", "ta", "te", "mr", "gu", etc.
+    severity: str = "CRITICAL"   # "CRITICAL", "WARNING", "TACTICAL"
+
+
+class AlertAnnounceResponse(BaseModel):
+    success: bool
+    spoken_text: str
+    language: str
+    voice_used: str
+    audio_base64: str | None = None
+    audio_url: str | None = None
+    error: str | None = None
+
+
 

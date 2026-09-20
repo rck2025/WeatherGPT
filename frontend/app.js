@@ -1707,12 +1707,37 @@ function updateEmergencyUIState(alertsData, weatherData) {
     document.body.classList.add('crisis-mode');
     if (elements.crisisBanner) {
       elements.crisisBanner.style.display = 'flex';
+      let title = '';
+      let details = '';
+
       if (isTempExtreme) {
-        elements.crisisBanner.innerHTML = '<span>⚠️ SEVERE HEAT EMERGENCY: TEMPERATURE EXCEEDS 45°C THRESHOLD</span><span style="font-size: 10px; opacity: 0.85;">ACTIVATE IMD SEVERE HEAT ACTION PROTOCOL</span>';
+        title = 'Severe Heat Emergency: Temperature exceeds 45°C threshold';
+        details = 'Activate IMD Severe Heat Action Protocol.';
       } else if (isWindExtreme) {
-        elements.crisisBanner.innerHTML = '<span>⚠️ GALE/SQUALL EMERGENCY: WIND VELOCITY EXCEEDS 75 KM/H</span><span style="font-size: 10px; opacity: 0.85;">TRIGGER CYCLONE / HIGH-WIND EVACUATION SOPS</span>';
+        title = 'Gale Squall Emergency: Wind velocity exceeds 75 km/h';
+        details = 'Trigger Cyclone and High-Wind Evacuation SOPs.';
       } else {
-        elements.crisisBanner.innerHTML = '<span>⚠️ CRITICAL METEOROLOGICAL ALERT DETECTED — HIGH/EXTREME SEVERITY HAZARDS ACTIVE</span>';
+        const topAlert = alerts.find((a) => {
+          const s = (a.severity || '').toLowerCase();
+          return s.includes('high') || s.includes('extreme') || s.includes('critical') || s.includes('red');
+        });
+        title = topAlert ? topAlert.title : 'Critical Meteorological Alert Detected';
+        details = topAlert ? (topAlert.description || '') : 'High and Extreme severity hazards are currently active.';
+      }
+
+      currentActiveAlert = { title, details };
+
+      const bannerTextEl = document.getElementById('crisisBannerText');
+      if (bannerTextEl) {
+        const titleClean = title.replace(/[⚠️⛔🚨*#`]+/g, '').trim().toUpperCase();
+        const detailsClean = details ? details.replace(/[⚠️⛔🚨*#`]+/g, '').trim().toUpperCase() : '';
+        bannerTextEl.innerHTML = detailsClean
+          ? `<span>⚠️ ${titleClean}</span><span style="font-size: 10px; opacity: 0.85; margin-left: 8px;">${detailsClean}</span>`
+          : `<span>⚠️ ${titleClean}</span>`;
+      }
+
+      if (typeof checkAndAutoSpeakAlert === 'function') {
+        checkAndAutoSpeakAlert(title, details);
       }
     }
   } else {
@@ -1720,6 +1745,10 @@ function updateEmergencyUIState(alertsData, weatherData) {
     if (elements.crisisBanner) {
       elements.crisisBanner.style.display = 'none';
     }
+    if (typeof stopAlertSpeech === 'function') {
+      stopAlertSpeech();
+    }
+    currentActiveAlert = null;
   }
 }
 
@@ -3011,6 +3040,19 @@ if (elements.languageSelect) {
         state.lastSynopticOverlays
       );
     }
+    // Re-announce active emergency alert in the newly selected language if Auto-Speak is enabled
+    if (
+      typeof currentActiveAlert !== 'undefined' &&
+      currentActiveAlert &&
+      elements.crisisBanner &&
+      elements.crisisBanner.style.display !== 'none'
+    ) {
+      const isAutoSpeak = localStorage.getItem('weathergpt_auto_speak_alerts') === 'true' ||
+        (window.a11yState && window.a11yState.autoSpeak);
+      if (isAutoSpeak && typeof checkAndAutoSpeakAlert === 'function') {
+        checkAndAutoSpeakAlert(currentActiveAlert.title, currentActiveAlert.details, true);
+      }
+    }
   });
 }
 
@@ -3107,3 +3149,371 @@ window.addEventListener('load', initializeTerminal);
   });
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACCESSIBILITY CONTROL CENTER MODULE (A11Y)
+// Dynamic Text Sizing, High Contrast Mode, Auto-Speak Alerts & Persistence
+// ═══════════════════════════════════════════════════════════════════════════
+
+const A11Y_STORAGE_KEY = 'weathergpt_accessibility_settings';
+const A11Y_AUTO_SPEAK_KEY = 'weathergpt_auto_speak_alerts';
+
+const a11yState = {
+  textSize: 'normal',       // 'normal' | 'large' | 'xlarge'
+  highContrast: false,      // boolean
+  autoSpeak: false,         // boolean
+};
+state.a11y = a11yState;
+window.a11yState = a11yState;
+
+// State tracking for Auto-Speak Voice Engine & Crisis Controls
+let currentActiveAlert = null;
+let lastSpokenAlertHash = '';
+let activeAlertAudio = null;
+
+function showCrisisVoicePlaying(isPlaying) {
+  const voiceControls = document.getElementById('crisisVoiceControls');
+  if (voiceControls) {
+    voiceControls.style.display = isPlaying ? 'inline-flex' : 'none';
+  }
+}
+
+function stopAlertSpeech() {
+  if (activeAlertAudio) {
+    try {
+      activeAlertAudio.pause();
+      activeAlertAudio.currentTime = 0;
+    } catch (e) {}
+    activeAlertAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+  showCrisisVoicePlaying(false);
+}
+window.stopAlertSpeech = stopAlertSpeech;
+
+async function checkAndAutoSpeakAlert(title, details, force = false) {
+  const isAutoSpeakOn = (
+    localStorage.getItem(A11Y_AUTO_SPEAK_KEY) === 'true' ||
+    (window.a11yState && window.a11yState.autoSpeak)
+  );
+  if (!isAutoSpeakOn || !title) return;
+
+  // Read selected language from dropdown
+  let targetLang = 'en';
+  if (elements.languageSelect && elements.languageSelect.value) {
+    targetLang = elements.languageSelect.value;
+  }
+  if (targetLang === 'auto' || targetLang === 'none' || !targetLang) {
+    targetLang = (state && state.detected_language) || 'en';
+  }
+  targetLang = targetLang.split('-')[0].split('_')[0];
+
+  const alertHash = `${title}_${details || ''}_${targetLang}`;
+  if (!force && alertHash === lastSpokenAlertHash) return; // Prevent spamming / repeat loop
+
+  try {
+    showCrisisVoicePlaying(true);
+    const response = await fetch('/api/voice/announce-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        alert_title: title,
+        alert_details: details || '',
+        target_language: targetLang,
+        severity: 'CRITICAL',
+      }),
+    });
+
+    const data = await response.json();
+    if (data && data.success && data.audio_base64) {
+      if (activeAlertAudio) {
+        try {
+          activeAlertAudio.pause();
+        } catch (e) {}
+        activeAlertAudio = null;
+      }
+      activeAlertAudio = new Audio(data.audio_base64);
+      activeAlertAudio.onplay = () => showCrisisVoicePlaying(true);
+      activeAlertAudio.onended = () => showCrisisVoicePlaying(false);
+      activeAlertAudio.onerror = (err) => {
+        console.warn('[A11Y] Alert audio playback error:', err);
+        showCrisisVoicePlaying(false);
+      };
+      await activeAlertAudio.play();
+      lastSpokenAlertHash = alertHash;
+      console.log(`🔊 [AUTO-SPEAK] Announced alert in ${targetLang}: ${data.spoken_text}`);
+    } else {
+      showCrisisVoicePlaying(false);
+      // Fallback to browser TTS if backend speech synthesis returned error
+      if (data && data.spoken_text) {
+        speakVoiceAlert(data.spoken_text);
+      }
+    }
+  } catch (err) {
+    console.error('Auto-Speak alert failed:', err);
+    showCrisisVoicePlaying(false);
+    // Fallback to browser TTS on network failure
+    speakVoiceAlert(`${title}. ${details || ''}`);
+  }
+}
+window.checkAndAutoSpeakAlert = checkAndAutoSpeakAlert;
+
+function loadA11ySettings() {
+  try {
+    const raw = localStorage.getItem(A11Y_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (['normal', 'large', 'xlarge'].includes(parsed.textSize)) {
+        a11yState.textSize = parsed.textSize;
+      }
+      if (typeof parsed.highContrast === 'boolean') {
+        a11yState.highContrast = parsed.highContrast;
+      }
+      if (typeof parsed.autoSpeak === 'boolean') {
+        a11yState.autoSpeak = parsed.autoSpeak;
+      }
+    }
+    const separateAutoSpeak = localStorage.getItem(A11Y_AUTO_SPEAK_KEY);
+    if (separateAutoSpeak !== null) {
+      a11yState.autoSpeak = separateAutoSpeak === 'true';
+    }
+  } catch (err) {
+    console.warn('[A11Y] Failed to load settings from localStorage:', err);
+  }
+}
+
+function saveA11ySettings() {
+  try {
+    localStorage.setItem(A11Y_STORAGE_KEY, JSON.stringify(a11yState));
+    localStorage.setItem(A11Y_AUTO_SPEAK_KEY, a11yState.autoSpeak ? 'true' : 'false');
+  } catch (err) {
+    console.warn('[A11Y] Failed to save settings to localStorage:', err);
+  }
+}
+
+function applyTextSize(size) {
+  a11yState.textSize = size;
+  const root = document.documentElement;
+  const body = document.body;
+
+  root.classList.remove('text-scale-large', 'text-scale-xlarge');
+  body.classList.remove('text-scale-large', 'text-scale-xlarge');
+
+  if (size === 'large') {
+    root.classList.add('text-scale-large');
+    body.classList.add('text-scale-large');
+  } else if (size === 'xlarge') {
+    root.classList.add('text-scale-xlarge');
+    body.classList.add('text-scale-xlarge');
+  }
+
+  document.querySelectorAll('.text-size-btn').forEach((btn) => {
+    const isActive = btn.dataset.size === size;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  saveA11ySettings();
+}
+
+function applyHighContrast(enabled) {
+  a11yState.highContrast = !!enabled;
+  const body = document.body;
+  const root = document.documentElement;
+  const switchEl = document.getElementById('highContrastSwitch');
+
+  if (a11yState.highContrast) {
+    body.classList.add('high-contrast');
+    root.classList.add('high-contrast');
+    root.setAttribute('data-high-contrast', 'true');
+    if (switchEl) {
+      switchEl.checked = true;
+      switchEl.setAttribute('aria-checked', 'true');
+    }
+  } else {
+    body.classList.remove('high-contrast');
+    root.classList.remove('high-contrast');
+    root.removeAttribute('data-high-contrast');
+    if (switchEl) {
+      switchEl.checked = false;
+      switchEl.setAttribute('aria-checked', 'false');
+    }
+  }
+
+  saveA11ySettings();
+}
+
+function applyAutoSpeak(enabled) {
+  a11yState.autoSpeak = !!enabled;
+  const switchEl = document.getElementById('autoSpeakSwitch');
+  if (switchEl) {
+    switchEl.checked = a11yState.autoSpeak;
+    switchEl.setAttribute('aria-checked', a11yState.autoSpeak ? 'true' : 'false');
+  }
+
+  saveA11ySettings();
+
+  if (a11yState.autoSpeak) {
+    // If an alert is currently active on screen, trigger backend voice announcement immediately
+    if (
+      currentActiveAlert &&
+      elements.crisisBanner &&
+      elements.crisisBanner.style.display !== 'none'
+    ) {
+      checkAndAutoSpeakAlert(currentActiveAlert.title, currentActiveAlert.details, true);
+    } else {
+      speakVoiceAlert('Voice assist enabled. Critical alerts will be spoken automatically.');
+    }
+  } else {
+    stopAlertSpeech();
+  }
+}
+
+let lastSpokenAlertTime = 0;
+let lastSpokenText = '';
+function speakVoiceAlert(text) {
+  if (!a11yState.autoSpeak) return;
+  if (!('speechSynthesis' in window)) return;
+  const now = Date.now();
+  if (now - lastSpokenAlertTime < 6000 && lastSpokenText === text) return;
+  lastSpokenText = text;
+  lastSpokenAlertTime = now;
+
+  try {
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/<[^>]*>/g, '').replace(/[#*`~⚠️⛔]/g, '').trim();
+    if (!cleanText) return;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find((v) => v.lang.startsWith('en-IN') || v.lang.startsWith('en-GB') || v.lang.startsWith('en')) || voices[0];
+    if (preferredVoice) utterance.voice = preferredVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.warn('[A11Y] Speech synthesis error:', err);
+  }
+}
+
+function toggleA11yPopover(forceState) {
+  const popover = document.getElementById('a11yPopover');
+  const triggerBtn = document.getElementById('a11yTriggerBtn');
+  if (!popover || !triggerBtn) return;
+
+  const isHidden = popover.hasAttribute('hidden');
+  const shouldOpen = typeof forceState === 'boolean' ? forceState : isHidden;
+
+  if (shouldOpen) {
+    popover.removeAttribute('hidden');
+    triggerBtn.setAttribute('aria-expanded', 'true');
+    triggerBtn.classList.add('is-active');
+    const firstFocusable = popover.querySelector('button, input');
+    if (firstFocusable) firstFocusable.focus();
+  } else {
+    popover.setAttribute('hidden', '');
+    triggerBtn.setAttribute('aria-expanded', 'false');
+    triggerBtn.classList.remove('is-active');
+  }
+}
+
+function initAccessibilityControlCenter() {
+  loadA11ySettings();
+
+  // Apply persisted settings immediately
+  applyTextSize(a11yState.textSize);
+  applyHighContrast(a11yState.highContrast);
+
+  const autoSpeakSwitch = document.getElementById('autoSpeakSwitch');
+  if (autoSpeakSwitch) {
+    autoSpeakSwitch.checked = a11yState.autoSpeak;
+    autoSpeakSwitch.setAttribute('aria-checked', a11yState.autoSpeak ? 'true' : 'false');
+  }
+
+  // Bind trigger & close buttons
+  const triggerBtn = document.getElementById('a11yTriggerBtn');
+  const closeBtn = document.getElementById('a11yCloseBtn');
+  if (triggerBtn) {
+    triggerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleA11yPopover();
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleA11yPopover(false);
+      triggerBtn?.focus();
+    });
+  }
+
+  // Bind text size buttons
+  document.querySelectorAll('.text-size-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const size = btn.dataset.size;
+      if (size) applyTextSize(size);
+    });
+  });
+
+  // Bind High Contrast switch
+  const highContrastSwitch = document.getElementById('highContrastSwitch');
+  if (highContrastSwitch) {
+    highContrastSwitch.addEventListener('change', (e) => {
+      applyHighContrast(e.target.checked);
+    });
+  }
+
+  // Bind Auto-Speak switch
+  if (autoSpeakSwitch) {
+    autoSpeakSwitch.addEventListener('change', (e) => {
+      applyAutoSpeak(e.target.checked);
+    });
+  }
+
+  // Bind Crisis Banner Mute Button
+  const stopSpeechBtn = document.getElementById('stopAlertSpeechBtn');
+  if (stopSpeechBtn) {
+    stopSpeechBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stopAlertSpeech();
+    });
+  }
+
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    const container = document.getElementById('a11yContainer');
+    if (container && !container.contains(e.target)) {
+      toggleA11yPopover(false);
+    }
+  });
+
+  // Close on Escape key and restore focus
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const popover = document.getElementById('a11yPopover');
+      if (popover && !popover.hasAttribute('hidden')) {
+        toggleA11yPopover(false);
+        triggerBtn?.focus();
+      }
+    }
+  });
+}
+
+// Ensure A11Y initializes as early as possible and on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAccessibilityControlCenter);
+} else {
+  initAccessibilityControlCenter();
+}
+
+window.initAccessibilityControlCenter = initAccessibilityControlCenter;
+window.applyTextSize = applyTextSize;
+window.applyHighContrast = applyHighContrast;
+window.applyAutoSpeak = applyAutoSpeak;
+window.speakVoiceAlert = speakVoiceAlert;
+window.currentActiveAlert = currentActiveAlert;
+

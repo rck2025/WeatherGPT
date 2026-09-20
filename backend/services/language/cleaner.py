@@ -846,33 +846,79 @@ GOOGLE_TRANSLATOR_LANG_MAP: dict[str, str] = {
 }
 
 
+INDIC_LANG_FULL_NAMES: dict[str, str] = {
+    "brx": "Bodo (in Devanagari script)",
+    "ne": "Nepali",
+    "kok": "Konkani (in Devanagari script)",
+    "mai": "Maithili",
+    "doi": "Dogri",
+    "sat": "Santali",
+    "mni": "Manipuri",
+    "as": "Assamese",
+    "or": "Odia",
+    "sa": "Sanskrit",
+    "hi": "Hindi",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "mr": "Marathi",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "pa": "Punjabi",
+    "ur": "Urdu",
+    "ks": "Kashmiri",
+    "sd": "Sindhi",
+}
+
+
 def gemini_translate_fallback(text: str, source_lang: str, target_lang: str = "en") -> str | None:
-    """Gemini Flash fast fallback translation for rare Indic languages not supported by deep-translator."""
+    """Gemini Flash fast fallback translation for Indic languages not supported by deep-translator or when rate-limited."""
     try:
         import os
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             return None
         from langchain_google_genai import ChatGoogleGenerativeAI
-        models_to_try = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-1.5-flash"]
+
+        tgt_name = INDIC_LANG_FULL_NAMES.get(target_lang, target_lang)
+        src_name = INDIC_LANG_FULL_NAMES.get(source_lang, source_lang)
+
+        models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash"]
         for m in models_to_try:
             try:
                 llm = ChatGoogleGenerativeAI(
                     model=m,
-                    temperature=0.0,
                     google_api_key=api_key,
                     max_retries=1,
-                    timeout=6,
+                    timeout=15,
                 )
                 prompt = (
-                    f"Translate the following {source_lang} weather text into {target_lang}. "
-                    f"Output ONLY the direct translation, with no explanation, conversational filler, or formatting:\n\n{text}"
+                    f"Translate the following emergency meteorological alert from {src_name} into {tgt_name}.\n"
+                    f"Output ONLY the direct translated sentence in the native script. "
+                    f"Do NOT include any conversational filler, markdown codeblocks, notes, pronunciation guides, or English text:\n\n{text}"
                 )
                 res = llm.invoke(prompt)
-                translated = getattr(res, "content", "") or getattr(res, "text", "")
-                if translated and str(translated).strip():
-                    return str(translated).strip()
-            except Exception:
+                content = getattr(res, "content", "")
+                if isinstance(content, list):
+                    parts = []
+                    for item in content:
+                        if isinstance(item, dict) and "text" in item:
+                            parts.append(item["text"])
+                        elif isinstance(item, str):
+                            parts.append(item)
+                    extracted = " ".join(parts).strip()
+                else:
+                    extracted = str(content).strip()
+
+                if extracted:
+                    # Clean any leading/trailing explanatory notes or formatting
+                    lines = [l.strip() for l in extracted.split("\n") if l.strip() and not l.strip().startswith(("*", "#", "`", "(", "["))]
+                    cleaned_res = " ".join(lines) if lines else extracted
+                    if cleaned_res and cleaned_res.strip().lower() != text.strip().lower():
+                        return cleaned_res.strip()
+            except Exception as exc:
+                logger.debug("Gemini model %s translation error: %s", m, exc)
                 continue
     except Exception as e:
         logger.debug("Gemini fallback translation notice: %s", e)
@@ -904,18 +950,24 @@ def safe_translate(text: str, source_lang: str, target_lang: str, input_lang: st
     if src == tgt:
         return text
 
+    # Special handling: Bodo ('brx') is not supported in deep-translator; route directly to Gemini Flash
+    if tgt == "brx" or src == "brx":
+        gemini_res = gemini_translate_fallback(text, source_lang=src, target_lang=tgt)
+        if gemini_res:
+            return gemini_res
+
     # Map language codes for GoogleTranslator
     src_mapped = GOOGLE_TRANSLATOR_LANG_MAP.get(src, src)
     tgt_mapped = GOOGLE_TRANSLATOR_LANG_MAP.get(tgt, tgt)
 
     # Engine 1: Google Translator
-    if GoogleTranslator is not None:
+    if GoogleTranslator is not None and tgt != "brx" and src != "brx":
         try:
             result = GoogleTranslator(source=src_mapped, target=tgt_mapped).translate(text)
             if result and result.strip() and result.strip().lower() != text.strip().lower():
                 return result
-        except Exception:
-            pass
+        except Exception as gt_err:
+            logger.debug("GoogleTranslator error for %s -> %s: %s", src, tgt, gt_err)
 
     # Engine 2: MyMemory Translator
     try:
@@ -924,8 +976,8 @@ def safe_translate(text: str, source_lang: str, target_lang: str, input_lang: st
         result = MyMemoryTranslator(source=src_tag, target=tgt_tag).translate(text)
         if result and result.strip() and result.strip().lower() != text.strip().lower():
             return result
-    except Exception:
-        pass
+    except Exception as mm_err:
+        logger.debug("MyMemoryTranslator error for %s -> %s: %s", src, tgt, mm_err)
 
     # Engine 3: Gemini Flash Fast Translation Fallback (All 22 scheduled Indian languages)
     gemini_res = gemini_translate_fallback(text, source_lang=src, target_lang=tgt)
