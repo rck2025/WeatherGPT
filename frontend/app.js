@@ -1488,6 +1488,50 @@ function updateTelemetryWidgetForMode(weatherData, alertsData) {
   }
 }
 
+function appendStandardModeNotification() {
+  if (!elements.chatStream) return;
+
+  const note = document.createElement('div');
+  note.className = 'message-entry system-standard-notice';
+
+  note.innerHTML = `
+    <span
+      class="message-prefix"
+      style="
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      "
+    >
+      STANDARD MODE ACTIVE
+    </span>
+
+    <div
+      class="message-content"
+      style="
+        color: var(--text);
+        font-size: 13.5px;
+        line-height: 1.65;
+        border-left: 3px solid var(--accent);
+        padding: 12px 16px;
+        background: var(--surface);
+        margin-top: 4px;
+        border-radius: 0 var(--radius) var(--radius) 0;
+      "
+    >
+      Weather data is now in standard mode — you'll see general weather
+      conditions, forecasts, regional alerts, and meteorological information.
+      Ask anything about weather, hazards, forecasts, or local conditions.
+    </div>
+  `;
+
+  elements.chatStream.appendChild(note);
+  note.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
 function appendAviationModeNotification() {
   if (!elements.chatStream) return;
   const note = document.createElement('div');
@@ -1652,6 +1696,9 @@ function setMode(forcedMode) {
     appendAviationModeNotification();
   } else if (isFarmer) {
     appendFarmerModeNotification();
+  }
+  else {
+    appendStandardModeNotification();
   }
 }
 window.setMode = setMode;
@@ -2309,9 +2356,9 @@ async function executeCommand(queryText) {
     const errorEntry = document.createElement('div');
     errorEntry.className = 'message-entry bot-message';
     errorEntry.innerHTML = `
-      <span class="message-prefix" style="color:var(--terminal-red);">SYS_ERROR &gt; EXECUTION FAILED</span>
+      <span class="message-prefix" style="color:var(--terminal-red);">EXECUTION FAILED</span>
       <div class="message-content" style="color:var(--terminal-red);">
-        [ERROR] Communication failure with backend at /chat: ${escapeHtml(err.message)}
+        [ERROR] Communication failure with backend (at /chat): ${escapeHtml(err.message)}
       </div>
     `;
     elements.chatStream.appendChild(errorEntry);
